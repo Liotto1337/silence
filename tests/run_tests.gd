@@ -22,30 +22,39 @@ func _run() -> void:
 	print("--- level / navigation")
 	var map := house.get_navigation_map()
 	for i in 120:  # wait for the baked region to be synced into the map
-		if _reachable(map, house.monster_spawn, Vector3(13.0, 0, 4.5)):
+		if _reachable(map, house.monster_spawn, house.patrol_points[0]):
 			break
 		await _frames(1)
 	_check(house.navigation_mesh.get_polygon_count() > 50, "navmesh baked (%d polygons)" % house.navigation_mesh.get_polygon_count())
 	for p: Vector3 in house.patrol_points:
 		_check(_reachable(map, house.monster_spawn, p), "patrol point %s reachable from monster spawn" % p)
-	for p: Vector3 in [Vector3(5, 0, 18.6), Vector3(13, 0, 18.6), Vector3(8, 0, 20.5), Vector3(-0.8, 0, 18.6)]:
+	for p: Vector3 in [Vector3(5.6, 0, -0.6), Vector3(10.5, 0, -0.6), Vector3(16.0, 0, -0.6), Vector3(-0.8, 0, -0.6),
+			Vector3(1.4, 0, 14.8), Vector3(5.25, 0, 14.8), Vector3(8.5, 0, 14.8)]:
 		var closest := NavigationServer3D.map_get_closest_point(map, p)
 		_check(Vector2(closest.x - p.x, closest.z - p.z).length() > 0.6, "vent duct %s is not on the monster navmesh" % p)
+	for p: Vector3 in [Vector3(8.75, 0, 1.6), Vector3(10.75, 0, 1.0)]:
+		_check(_reachable(map, house.monster_spawn, p), "storage closet %s reachable for the monster" % p)
+	_check(not house.balcony_door.get_prompt(player).begins_with("Открыть"), "balcony door is jammed")
 	_check(house.key_spots.size() == 12, "12 possible key spots (9 drawers, 2 wardrobes, under bed): %d" % house.key_spots.size())
 	_check(house.battery_spots.size() == 5, "5 battery spots")
 	_check(house.toys.size() == 7, "7 toys")
 
 	print("--- vents: player crouched fits, standing / monster doesn't")
-	var vent_in := Transform3D(Basis(), Vector3(2.5, 0.02, 17.2))
+	var vent_in := Transform3D(Basis(), Vector3(5.6, 0.02, 0.9))  # hero room, north vent
 	player.global_transform = vent_in
 	player._apply_height(Player.CROUCH_HEIGHT)
-	_check(not player.test_move(vent_in, Vector3(0, 0, 1.4)), "crouched player can crawl into the vent")
+	_check(not player.test_move(vent_in, Vector3(0, 0, -1.4)), "crouched player can crawl into the hero room vent")
 	player._apply_height(Player.STAND_HEIGHT)
-	_check(player.test_move(vent_in, Vector3(0, 0, 1.4)), "standing player can't enter the vent")
+	_check(player.test_move(vent_in, Vector3(0, 0, -1.4)), "standing player can't enter the vent")
 	player._apply_height(Player.CROUCH_HEIGHT)
-	var in_duct := Transform3D(Basis(), Vector3(2.5, 0.02, 18.6))
-	_check(not player.test_move(in_duct, Vector3(9.0, 0, 0)), "crouched player can crawl along the duct to the bathroom vent")
-	_check(player.test_move(in_duct, Vector3(-5.0, 0, 0)), "west duct end is blocked by a fan")
+	var in_duct := Transform3D(Basis(), Vector3(5.6, 0.02, -0.6))
+	_check(not player.test_move(in_duct, Vector3(10.4, 0, 0)), "north duct leads to the parents' room vent")
+	_check(not player.test_move(Transform3D(Basis(), Vector3(16.0, 0.02, -0.6)), Vector3(0, 0, 1.5)), "crouched player can climb out into the parents' room")
+	_check(player.test_move(in_duct, Vector3(-7.5, 0, 0)), "west end of the north duct is blocked by a fan")
+	var kitchen_vent := Transform3D(Basis(), Vector3(1.4, 0.02, 13.4))
+	_check(not player.test_move(kitchen_vent, Vector3(0, 0, 1.4)), "crouched player can crawl into the kitchen vent")
+	_check(not player.test_move(Transform3D(Basis(), Vector3(1.4, 0.02, 14.8)), Vector3(3.85, 0, 0)), "south duct leads to the bathroom vent")
+	_check(player.test_move(Transform3D(Basis(), Vector3(5.25, 0.02, 14.8)), Vector3(5.0, 0, 0)), "east end of the south duct is blocked by a fan")
 	player._apply_height(Player.STAND_HEIGHT)
 	player.teleport(house.player_spawn_morning.origin, 0.0)
 	var probe: CharacterBody3D = (load("res://scenes/monster/monster.tscn") as PackedScene).instantiate()
@@ -54,19 +63,19 @@ func _run() -> void:
 	probe.collision_mask = 1
 	_game.add_child(probe)
 	probe.global_transform = vent_in
-	_check(probe.test_move(vent_in, Vector3(0, 0, 1.4)), "monster body can't enter the vent")
+	_check(probe.test_move(vent_in, Vector3(0, 0, -1.4)), "monster body can't enter the vent")
 	probe.queue_free()
 
 	print("--- interaction: reach, carrying, drawers, noisy props")
 	player.set_physics_process(false)
 	var under_toy: Toy = house.toys[2]
 	var toy_target := under_toy.global_position + Vector3(0, 0.06, 0)
-	_pose(player, Vector3(2.1, 0.02, 11.6), Player.CROUCH_HEIGHT, toy_target)
+	_pose(player, Vector3(2.0, 0.02, 1.8), Player.CROUCH_HEIGHT, toy_target)
 	var hit := player._ray()
 	_check(not hit.is_empty() and hit.collider == under_toy, "crouched: toy under the bed is reachable")
 	var reachable_standing := false
 	for dist: float in [0.9, 1.3, 1.7, 2.1]:
-		_pose(player, Vector3(1.2 + dist, 0.02, 11.6), Player.STAND_HEIGHT, toy_target)
+		_pose(player, Vector3(1.1 + dist, 0.02, 1.8), Player.STAND_HEIGHT, toy_target)
 		var h := player._ray()
 		if not h.is_empty() and h.collider == under_toy:
 			reachable_standing = true
@@ -89,8 +98,8 @@ func _run() -> void:
 	var rec := func(pos: Vector3, radius: float, _src: Node) -> void: noises.append(radius)
 	NoiseBus.noise_emitted.connect(rec)
 	_check(noises.is_empty(), "")
-	var drawer_target := Vector3(7.0, 0.42, 7.56)
-	_pose(player, Vector3(7.0, 0.02, 8.7), Player.STAND_HEIGHT, drawer_target)
+	var drawer_target := Vector3(11.44, 0.42, 6.6)  # hall dresser, middle drawer
+	_pose(player, Vector3(10.2, 0.02, 6.6), Player.STAND_HEIGHT, drawer_target)
 	player._try_interact()
 	await _frames(30)
 	var drawer := player._ray().get("collider") as Object
@@ -172,11 +181,12 @@ func _run() -> void:
 	_check(not house.front_door.get_prompt(player).begins_with("Открыть"), "front door locked without key")
 
 	print("--- monster: noise -> investigate -> hunt")
-	player.teleport(Vector3(4.5, 0.05, 16.5), 0.0)  # hero room, far from monster
-	monster.global_position = Vector3(20.0, 0.05, 3.0)
+	var far_spot := Vector3(0.9, 0.05, 13.4)  # kitchen, far from the parents' room
+	player.teleport(far_spot, 0.0)
+	monster.global_position = Vector3(17.5, 0.05, 2.0)
 	monster.rotation.y = 0.0
 	await _frames(5)
-	var noise_pos := Vector3(17.0, 0.1, 3.0)
+	var noise_pos := Vector3(15.0, 0.1, 2.5)
 	NoiseBus.emit_noise(noise_pos, 10.0, null)
 	await _frames(2)
 	_check(monster.state == Monster.State.SEARCH and monster.patience == 1 and monster._investigating, "1st noise: investigates, patience 1")
@@ -186,9 +196,16 @@ func _run() -> void:
 	_check(monster.state == Monster.State.HUNT, "3rd noise: HUNT")
 	var hunt_target := monster.agent.target_position - player.global_position
 	_check(Vector2(hunt_target.x, hunt_target.z).length() < 0.3, "hunt targets the player's position")
-	var far := Vector3(0.0, 0.1, 0.0)
+	await _frames(2)
+	_check(monster.is_frozen() and monster.model.pose == MonsterModel.Pose.ROAR, "hunt starts with a roar on the spot")
+	var roar_pos := monster.global_position
+	await _seconds(0.9)
+	_check(monster.global_position.distance_to(roar_pos) < 0.05, "stands still while roaring")
+	await _seconds(1.2)
+	_check(not monster.is_frozen() and monster.global_position.distance_to(roar_pos) > 0.3, "runs off after the roar")
+	monster.global_position = Vector3(17.5, 0.05, 2.0)
 	monster._begin_sweep(monster.global_position)
-	NoiseBus.emit_noise(Vector3(2.0, 0.1, 16.0), 3.0, null)
+	NoiseBus.emit_noise(Vector3(2.0, 0.1, 12.0), 3.0, null)
 	_check(monster.patience == 0, "noise out of earshot is ignored")
 	var dup_source := Node.new()
 	add_child(dup_source)
@@ -197,58 +214,136 @@ func _run() -> void:
 	_check(monster.patience == 1, "repeated noise from one source within cooldown counts once")
 	dup_source.queue_free()
 
+	print("--- monster: speed, room inspection, footsteps")
+	_check(Monster.CHASE_SPEED < Player.SPRINT_SPEED and Monster.HUNT_SPEED < Monster.CHASE_SPEED and Monster.PATROL_SPEED < Player.WALK_SPEED, "monster is slower than the sprinting player")
+	monster._begin_sweep(monster.global_position)
+	_check(monster._wait_timer >= Monster.LOOK_TIME_SWEEP_START, "looks around before sweeping (%.1f s)" % monster._wait_timer)
+	monster._investigating = false
+	monster._sweep_queue.clear()
+	monster._on_arrived()
+	_check(monster._wait_timer >= Monster.LOOK_TIME_PATROL.x, "inspects a room for at least %.1f s after a patrol point" % Monster.LOOK_TIME_PATROL.x)
+	await _frames(2)
+	_check(monster.model.pose == MonsterModel.Pose.LOOK, "look-around animation while inspecting")
+	var yaw_before := monster._head_yaw
+	var sweep := 0.0
+	for i in 15:
+		await _seconds(0.1)
+		sweep = maxf(sweep, absf(monster._head_yaw - yaw_before))
+	_check(sweep > 0.2, "head sweeps while looking around (%.2f rad)" % sweep)
+	var steps: Array[float] = []
+	var on_step := func(_pos: Vector3, speed: float) -> void: steps.append(speed)
+	monster.model.footstep.connect(on_step)
+	monster._wait_timer = 0.0
+	monster.global_position = Vector3(14.5, 0.05, 2.0)
+	await _frames(1)
+	monster._go_to(Vector3(10.0, 0, 8.3), Monster.PATROL_SPEED)  # parents' room -> hall
+	await _seconds(3.0)
+	var walk_steps := steps.size()
+	var expected := 3.0 * Monster.PATROL_SPEED / (0.8 + 0.18 * Monster.PATROL_SPEED)
+	_check(walk_steps >= int(expected) - 1 and walk_steps <= int(expected) + 2, "footsteps follow the walk cycle (%d steps in 3 s, ~%.1f expected)" % [walk_steps, expected])
+	monster.model.footstep.disconnect(on_step)
+	monster.active = false
+	monster.global_position = Vector3(10.0, 0.05, 6.0)  # middle of the hall
+	monster.rotation.y = 0.0  # body faces north
+	monster.force_update_transform()
+	player.teleport(Vector3(7.0, 0.05, 6.0), 0.0)  # to its left (west), in the living room
+	player.force_update_transform()
+	monster._head_yaw = PI * 0.5  # looking left
+	var head_cone := monster._can_see_player()
+	monster._head_yaw = 0.0
+	_check(head_cone and not monster._can_see_player(), "vision cone follows the head")
+	player.teleport(far_spot, 0.0)
+	monster.active = true
+	monster._begin_sweep(monster.global_position)
+
 	print("--- monster: goes to the TV and switches it off")
 	monster._begin_sweep(monster.global_position)
 	monster._wait_timer = 0.0
-	monster.global_position = Vector3(13.0, 0.05, 4.5)
-	player.teleport(Vector3(4.5, 0.05, 16.5), 0.0)
+	monster.global_position = Vector3(10.0, 0.05, 4.0)
+	player.teleport(Vector3(7.0, 0.05, 0.6), 0.0)  # hero room corner, out of sight of the TV
 	house.tv.set_on(true)
-	for i in 14:
+	for i in 30:
 		await _seconds(0.5)
 		if OS.get_environment("DEBUG_TESTS") != "":
 			print("    ", monster.debug_text(), " pos=", monster.global_position.snapped(Vector3.ONE * 0.1), " target=", monster.agent.target_position.snapped(Vector3.ONE * 0.1), " inv=", monster._investigating, " wait=", snappedf(monster._wait_timer, 0.1), " fin=", monster.agent.is_navigation_finished())
+		if not house.tv.is_on:
+			break
 	_check(not house.tv.is_on, "monster switched the TV off")
 
-	print("--- monster: sight -> chase -> catch")
+	print("--- monster: sight -> freeze facing the player -> chase -> catch")
 	monster._begin_sweep(monster.global_position)
-	monster.global_position = Vector3(12.0, 0.05, 8.25)
-	monster.rotation.y = -PI * 0.5  # facing +X along the corridor
-	player.teleport(Vector3(16.0, 0.05, 8.25), PI * 0.5)
+	monster.global_position = Vector3(10.0, 0.05, 2.8)  # hall, facing south
+	monster.rotation.y = PI + 0.6  # not quite facing the player
+	monster._wait_timer = 0.0
+	monster._head_yaw = 0.0
+	player.teleport(Vector3(10.0, 0.05, 7.0), 0.0)
 	await _frames(3)
-	_check(monster.state == Monster.State.CHASE, "player in sight -> CHASE")
+	_check(monster.state == Monster.State.CHASE and monster.is_frozen(), "player in sight -> CHASE, freezes first")
 	var caught := [false]
 	monster.caught_player.connect(func() -> void: caught[0] = true)
-	await _seconds(3.0)
+	var spot_pos := monster.global_position
+	await _seconds(0.7)
+	var to_player := player.global_position - monster.global_position
+	var facing := (-monster.global_basis.z).dot(Vector3(to_player.x, 0, to_player.z).normalized())
+	_check(monster.global_position.distance_to(spot_pos) < 0.05 and facing > 0.97, "turns to face the player and waits (facing %.2f)" % facing)
+	_check(monster.model.pose == MonsterModel.Pose.ALERT, "alert animation while staring")
+	await _seconds(0.5)
+	_check(not monster.is_frozen() and monster.global_position.distance_to(spot_pos) > 0.2, "after ~1 s it starts running")
+	await _seconds(2.5)
 	_check(caught[0], "monster catches a player standing still")
-	_check(far != Vector3.ZERO, "")  # keep `far` used
 
 	print("--- monster: player escapes into the vent")
 	_game._busy = false
 	_game.pause_menu._ending = false
 	_game.pause_menu.resume()  # the catch above opened the end screen and paused the tree
 	monster.active = true
-	monster._begin_sweep(Vector3(5.0, 0, 13.0))
+	monster._begin_sweep(Vector3(4.0, 0, 3.0))
 	monster._wait_timer = 0.0
-	monster.global_position = Vector3(5.0, 0.05, 11.0)
-	monster.rotation.y = PI  # facing +Z, into the hero room
+	monster.global_position = Vector3(4.5, 0.05, 4.0)
+	monster.rotation.y = 0.0  # facing north, towards the vent
 	player.set_controls_enabled(true)
-	player.teleport(Vector3(3.0, 0.05, 16.0), 0.0)
+	player.teleport(Vector3(5.6, 0.05, 1.0), 0.0)
 	await _frames(3)
 	_check(monster.state == Monster.State.CHASE, "monster spots the player near the vent")
 	player.set_physics_process(false)
 	player._apply_height(Player.CROUCH_HEIGHT)
 	player.crouching = true
-	player.teleport(Vector3(9.0, 0.05, 18.6), 0.0)  # deep in the duct
+	player.teleport(Vector3(8.0, 0.05, -0.6), 0.0)  # deep in the north duct
 	var escaped := false
 	var caught_in_vent := [false]
 	monster.caught_player.connect(func() -> void: caught_in_vent[0] = true)
-	for i in 30:
+	for i in 44:
 		await _seconds(0.5)
 		if monster.state == Monster.State.SEARCH:
 			escaped = true
 			break
 	_check(escaped and not caught_in_vent[0], "monster can't follow into the vent and gives up (state %s)" % Monster.State.keys()[monster.state])
-	_check(monster.global_position.z < 17.9, "monster stayed inside the house")
+	_check(monster.global_position.z > 0.05, "monster stayed inside the house")
+	player.set_physics_process(true)
+	player.crouching = false
+
+	print("--- player footsteps follow the step cycle")
+	monster.active = false
+	player._apply_height(Player.STAND_HEIGHT)
+	player.teleport(Vector3(10.0, 0.05, 2.5), PI)  # hall, facing south
+	var sprint_noises: Array[float] = []
+	var rec_sprint := func(_pos: Vector3, radius: float, src: Node) -> void:
+		if src == player:
+			sprint_noises.append(radius)
+	NoiseBus.noise_emitted.connect(rec_sprint)
+	Input.action_press(&"move_forward")
+	await _seconds(1.2)
+	_check(player.step_player.stream in Sfx.WALK_STEPS and sprint_noises.is_empty(), "walking plays quiet steps and makes no noise")
+	player.teleport(Vector3(10.0, 0.05, 2.5), PI)
+	Input.action_press(&"sprint")
+	await _seconds(1.6)
+	Input.action_release(&"sprint")
+	Input.action_release(&"move_forward")
+	var expected_steps := 1.6 * Player.SPRINT_SPEED / Player.SPRINT_STEP_LENGTH
+	_check(player.step_player.stream in Sfx.RUN_STEPS and sprint_noises.size() >= int(expected_steps) - 2 and sprint_noises.size() <= int(expected_steps) + 1,
+			"sprinting: one run step + noise per stride (%d in 1.6 s, ~%.1f expected)" % [sprint_noises.size(), expected_steps])
+	NoiseBus.noise_emitted.disconnect(rec_sprint)
+	_check(_game._ambient_timer > 0.0 and Sfx.AMBIENT.size() == 3, "random night ambience is scheduled")
 
 	print("--- settings")
 	var settings: Node = Settings

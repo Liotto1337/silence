@@ -66,4 +66,4 @@ func _physics_process(delta: float) -> void:
 	_noise_timer -= delta
 	if _noise_timer <= 0.0:
 		_noise_timer = NOISE_INTERVAL
-		NoiseBus.emit_noise(global_position + Vector3(0, 0.3, 0.3), NoiseBus.TV, self)
+		NoiseBus.emit_noise(global_transform * Vector3(0, 0.3, 0.3), NoiseBus.TV, self)  # in front of the screen

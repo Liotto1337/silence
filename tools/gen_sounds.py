@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Procedurally generates the alpha's placeholder sound effects into assets/sounds/.
 
-Only the sounds the alpha needs: monster roar/growl/steps, the rubber duck squeak,
-TV static, sprint footsteps, impact thud, vent fan hum and exhausted breathing.
+Only the sounds that have no recording yet: monster growl, TV static, impact thud,
+vent fan hum and exhausted breathing. Recorded sounds are cut by tools/cut_sounds.py.
 Run: python3 tools/gen_sounds.py
 """
 import os
@@ -75,18 +75,6 @@ def roar(dur=2.8, base=62.0):
     return x * env_adsr(len(t), 0.25, 0.4, 0.8, 0.9)
 
 
-def squeak():
-    out = []
-    for dur, f0, f1 in ((0.13, 1700, 2500), (0.16, 2300, 1500)):
-        t = t_axis(dur)
-        f = np.linspace(f0, f1, len(t))
-        phase = np.cumsum(f) / SR
-        s = np.sin(2 * np.pi * phase) + 0.35 * np.sign(np.sin(2 * np.pi * phase * 2))
-        out.append(s * env_adsr(len(t), 0.01, 0.03, 0.8, 0.05))
-        out.append(np.zeros(int(0.02 * SR)))
-    return np.concatenate(out)
-
-
 def tv_static(dur=2.0):
     n = int(SR * dur)
     x = highpass(rng.standard_normal(n), 400.0)
@@ -128,13 +116,8 @@ def breath(dur=1.8):
 
 
 def main():
-    save("monster_roar.wav", roar())
     save("monster_growl.wav", roar(1.1, 80.0))
-    save("monster_step.wav", thump(0.28, 55.0, 300.0, 0.07), 0.95)
-    save("duck_squeak.wav", squeak(), 0.8)
     save("tv_static.wav", tv_static(), 0.6)
-    for i, f in enumerate((85.0, 95.0, 78.0), start=1):
-        save(f"step_run_{i}.wav", thump(0.14, f, 1200.0, 0.035), 0.8)
     save("impact_thud.wav", thump(0.3, 140.0, 2500.0, 0.06), 0.9)
     save("fan_hum.wav", fan_hum(), 0.5)
     save("breath.wav", breath(), 0.5)

@@ -27,7 +27,10 @@ const STAMINA_REGEN := 11.0
 const REGEN_DELAY := 1.4
 const EXHAUST_RECOVER := 45.0  # after running dry you can't sprint until this much is back
 const JUMP_COST := 12.0
-const SPRINT_STEP_INTERVAL := 0.32
+## Metres per footstep. One step = one head-bob dip = one footstep sound (and noise when sprinting).
+const WALK_STEP_LENGTH := 1.3
+const SPRINT_STEP_LENGTH := 1.6
+const CROUCH_STEP_LENGTH := 0.9
 const LANDING_NOISE_SPEED := 3.0
 
 const REACH := 2.4
@@ -55,14 +58,14 @@ var held: Prop
 var _yaw: float = 0.0
 var _pitch: float = 0.0
 var _regen_timer: float = 0.0
-var _step_timer: float = 0.0
+var _step_phase: float = 0.0  # 0..1 between foot plants
 var _air_speed: float = 0.0
 var _height: float = STAND_HEIGHT
 var _hold_distance: float = 1.2
 var _held_rel_basis: Basis
 var _focus_target: Object
 var _focus_prompt: String = ""
-var _bob_time: float = 0.0
+var _bob_amp: float = 0.0
 var _stand_shape := CapsuleShape3D.new()
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
@@ -187,15 +190,9 @@ func _update_movement(delta: float) -> void:
 	if is_on_floor() and not on_floor:
 		_on_landed()
 
-	if sprinting and is_on_floor():
-		_step_timer -= delta
-		if _step_timer <= 0.0:
-			_step_timer = SPRINT_STEP_INTERVAL
-			_sprint_step()
-	else:
-		_step_timer = 0.0
-
-	_update_head_bob(delta, moving and is_on_floor())
+	var ground_speed := Vector2(velocity.x, velocity.z).length() if is_on_floor() else 0.0
+	_update_steps(delta, ground_speed)
+	_update_head_bob(delta, ground_speed)
 
 
 func _update_stamina(delta: float) -> void:
@@ -218,16 +215,36 @@ func _spend_stamina(amount: float) -> void:
 		breath_player.play()
 
 
-func _sprint_step() -> void:
-	step_player.stream = Sfx.RUN_STEPS.pick_random()
-	step_player.pitch_scale = randf_range(0.9, 1.1)
+func _update_steps(delta: float, ground_speed: float) -> void:
+	if ground_speed < 0.4:
+		return
+	var step_length := WALK_STEP_LENGTH
+	if sprinting:
+		step_length = SPRINT_STEP_LENGTH
+	elif crouching:
+		step_length = CROUCH_STEP_LENGTH
+	_step_phase += ground_speed * delta / step_length
+	if _step_phase >= 1.0:
+		_step_phase -= 1.0
+		_footstep()
+
+
+func _footstep() -> void:
+	if sprinting:
+		step_player.stream = Sfx.RUN_STEPS.pick_random()
+		step_player.volume_db = -3.0
+		NoiseBus.emit_noise(global_position, NoiseBus.SPRINT_STEP, self)
+	else:
+		step_player.stream = Sfx.WALK_STEPS.pick_random()
+		step_player.volume_db = -21.0 if crouching else -12.0
+	step_player.pitch_scale = randf_range(0.93, 1.07)
 	step_player.play()
-	NoiseBus.emit_noise(global_position, NoiseBus.SPRINT_STEP, self)
 
 
 func _on_landed() -> void:
 	if _air_speed > LANDING_NOISE_SPEED:
 		step_player.stream = Sfx.RUN_STEPS[0]
+		step_player.volume_db = 0.0
 		step_player.pitch_scale = 0.8
 		step_player.play()
 		NoiseBus.emit_noise(global_position, NoiseBus.JUMP_LANDING, self)
@@ -242,13 +259,13 @@ func _push_props() -> void:
 			body.apply_central_impulse(-c.get_normal() * 0.15)
 
 
-func _update_head_bob(delta: float, moving: bool) -> void:
-	var eye := _height - EYE_FROM_TOP
-	if moving:
-		_bob_time += delta * (13.0 if sprinting else 8.0)
-	var amp := 0.05 if sprinting else 0.02
-	var bob := sin(_bob_time) * amp if moving else 0.0
-	head.position.y = lerpf(head.position.y, eye + bob, minf(delta * 12.0, 1.0))
+## The head dips lowest exactly when a foot lands (phase 0), so steps and bob stay in sync.
+func _update_head_bob(delta: float, ground_speed: float) -> void:
+	var amp := 0.0
+	if ground_speed >= 0.4:
+		amp = 0.05 if sprinting else (0.012 if crouching else 0.025)
+	_bob_amp = lerpf(_bob_amp, amp, minf(delta * 8.0, 1.0))
+	head.position.y = _height - EYE_FROM_TOP - cos(_step_phase * TAU) * _bob_amp
 
 
 # --- crouch -----------------------------------------------------------------

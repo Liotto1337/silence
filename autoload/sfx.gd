@@ -1,15 +1,42 @@
 extends Node
 ## Fire-and-forget sound playback plus the shared sound library.
 
-const ROAR := preload("res://assets/sounds/monster_roar.wav")
+const ROAR := preload("res://assets/sounds/monster_roar.ogg")
 const GROWL := preload("res://assets/sounds/monster_growl.wav")
-const MONSTER_STEP := preload("res://assets/sounds/monster_step.wav")
-const SQUEAK := preload("res://assets/sounds/duck_squeak.wav")
+const MONSTER_STEPS: Array[AudioStream] = [
+	preload("res://assets/sounds/monster_step_1.wav"),
+	preload("res://assets/sounds/monster_step_2.wav"),
+	preload("res://assets/sounds/monster_step_3.wav"),
+	preload("res://assets/sounds/monster_step_4.wav"),
+]
+const MONSTER_RUN_STEPS: Array[AudioStream] = [
+	preload("res://assets/sounds/monster_run_1.wav"),
+	preload("res://assets/sounds/monster_run_2.wav"),
+	preload("res://assets/sounds/monster_run_3.wav"),
+	preload("res://assets/sounds/monster_run_4.wav"),
+]
+const SQUEAK := preload("res://assets/sounds/toy_squeak.wav")
 const TV_STATIC := preload("res://assets/sounds/tv_static.wav")
+const WALK_STEPS: Array[AudioStream] = [
+	preload("res://assets/sounds/step_walk_1.wav"),
+	preload("res://assets/sounds/step_walk_2.wav"),
+	preload("res://assets/sounds/step_walk_3.wav"),
+	preload("res://assets/sounds/step_walk_4.wav"),
+	preload("res://assets/sounds/step_walk_5.wav"),
+	preload("res://assets/sounds/step_walk_6.wav"),
+]
 const RUN_STEPS: Array[AudioStream] = [
 	preload("res://assets/sounds/step_run_1.wav"),
 	preload("res://assets/sounds/step_run_2.wav"),
 	preload("res://assets/sounds/step_run_3.wav"),
+	preload("res://assets/sounds/step_run_4.wav"),
+	preload("res://assets/sounds/step_run_5.wav"),
+	preload("res://assets/sounds/step_run_6.wav"),
+]
+const AMBIENT: Array[AudioStream] = [
+	preload("res://assets/sounds/amb_electric_wave.ogg"),
+	preload("res://assets/sounds/amb_crow.ogg"),
+	preload("res://assets/sounds/amb_crow_once.ogg"),
 ]
 const THUD := preload("res://assets/sounds/impact_thud.wav")
 const FAN_HUM := preload("res://assets/sounds/fan_hum.wav")

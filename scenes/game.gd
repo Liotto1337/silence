@@ -2,11 +2,14 @@ extends Node3D
 ## Game loop: morning (chores, no monster) -> sleep -> night (stealth, monster, key, exit).
 
 const MonsterScene := preload("res://scenes/monster/monster.tscn")
+const AMBIENT_DELAY := Vector2(25.0, 60.0)  ## seconds between random creepy sounds at night
+const AMBIENT_FIRST_DELAY := Vector2(12.0, 25.0)
 
 var phase: GameState.Phase = GameState.Phase.MORNING
 var monster: Monster
 var quests: Quests
 var _busy: bool = false  # a fade / transition is running
+var _ambient_timer: float = 0.0
 
 @onready var house: House = $House
 @onready var player: Player = $Player
@@ -48,6 +51,22 @@ func _unhandled_input(event: InputEvent) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
+func _process(delta: float) -> void:
+	if phase != GameState.Phase.NIGHT or _busy:
+		return
+	_ambient_timer -= delta
+	if _ambient_timer <= 0.0:
+		_ambient_timer = randf_range(AMBIENT_DELAY.x, AMBIENT_DELAY.y)
+		play_ambient()
+
+
+## A random creepy sound from somewhere a few metres away (pure atmosphere: the monster ignores it).
+func play_ambient() -> void:
+	var angle := randf() * TAU
+	var pos := player.global_position + Vector3(cos(angle), 0.0, sin(angle)) * randf_range(4.0, 8.0) + Vector3(0, 1.5, 0)
+	Sfx.play_3d(Sfx.AMBIENT.pick_random(), pos, -6.0, 40.0, randf_range(0.9, 1.05))
+
+
 # --- phases -----------------------------------------------------------------
 
 func _start_morning() -> void:
@@ -86,6 +105,7 @@ func _start_night() -> void:
 	monster.activate(player, house.patrol_points)
 	hud.monster = monster
 	quests.start_night()
+	_ambient_timer = randf_range(AMBIENT_FIRST_DELAY.x, AMBIENT_FIRST_DELAY.y)
 	hud.show_message("Что-то ходит по дому. Найди ключ и выберись. Тихо.", 5.0)
 
 

@@ -3,21 +3,29 @@ extends Node
 ## Output dir: env SHOT_DIR.
 
 const VIEWS_MORNING := [
-	["m_hero_room", Vector3(6.5, 1.62, 16.8), Vector3(4.0, 0.6, 12.0)],
-	["m_kitchen", Vector3(8.8, 1.62, 6.0), Vector3(3.0, 0.8, 1.5)],
-	["m_living", Vector3(12.0, 1.62, 6.0), Vector3(17.0, 0.8, 0.5)],
-	["m_corridor", Vector3(1.0, 1.62, 8.25), Vector3(20.0, 1.0, 8.25)],
-	["m_bath", Vector3(11.0, 1.62, 10.3), Vector3(13.5, 0.5, 17.0)],
-	["m_entry", Vector3(17.0, 1.62, 10.5), Vector3(23.0, 1.0, 15.0)],
-	["m_vent_room", Vector3(2.5, 0.7, 15.8), Vector3(2.5, 0.4, 18.5)],
-	["m_duct", Vector3(2.5, 0.7, 18.6), Vector3(20.0, 0.5, 18.6)],
-	["m_duct_fan", Vector3(8.0, 0.7, 19.0), Vector3(8.0, 0.5, 21.5)],
-	["m_under_bed", Vector3(2.2, 0.72, 11.8), Vector3(0.7, 0.05, 11.7)],
+	["m_hero_room", Vector3(7.2, 1.62, 4.3), Vector3(2.0, 0.6, 1.5)],
+	["m_hero_vent", Vector3(5.6, 0.7, 2.2), Vector3(5.6, 0.4, -0.5)],
+	["m_living", Vector3(9.5, 1.62, 5.5), Vector3(2.0, 0.8, 8.5)],
+	["m_hall", Vector3(10.0, 1.62, 9.0), Vector3(10.0, 1.0, 1.0)],
+	["m_parents", Vector3(12.8, 1.62, 3.4), Vector3(19.0, 0.8, 2.0)],
+	["m_kitchen", Vector3(4.2, 1.62, 13.8), Vector3(1.0, 0.8, 10.0)],
+	["m_corridor", Vector3(5.2, 1.62, 10.5), Vector3(11.5, 1.0, 12.5)],
+	["m_bath", Vector3(5.7, 1.62, 10.6), Vector3(5.6, 0.5, 14.0)],
+	["m_duct", Vector3(5.6, 0.7, -0.6), Vector3(16.0, 0.5, -0.6)],
+	["m_under_bed", Vector3(2.1, 0.72, 2.0), Vector3(0.6, 0.05, 2.1)],
+]
+const VIEWS_MONSTER := [
+	["mon_front", Vector3(10.0, 1.6, 5.6), Vector3(10.0, 1.4, 2.6), MonsterModel.Pose.NORMAL, 0.0],
+	["mon_side_walk", Vector3(11.8, 1.3, 4.2), Vector3(10.0, 1.2, 2.6), MonsterModel.Pose.NORMAL, 1.3],
+	["mon_run", Vector3(11.4, 1.5, 4.4), Vector3(10.0, 1.3, 2.6), MonsterModel.Pose.NORMAL, 4.3],
+	["mon_alert", Vector3(10.0, 1.7, 5.0), Vector3(10.0, 1.5, 2.6), MonsterModel.Pose.ALERT, 0.0],
+	["mon_roar", Vector3(11.0, 1.6, 5.0), Vector3(10.0, 1.6, 2.6), MonsterModel.Pose.ROAR, 0.0],
+	["mon_face", Vector3(10.0, 2.25, 3.6), Vector3(10.0, 2.25, 2.6), MonsterModel.Pose.NORMAL, 0.0],
 ]
 const VIEWS_NIGHT := [
-	["n_hero_room_dark", Vector3(3.0, 1.62, 13.0), Vector3(8.0, 1.0, 14.0), false],
-	["n_corridor_flashlight", Vector3(1.0, 1.62, 8.25), Vector3(12.0, 1.0, 8.25), true],
-	["n_monster", Vector3(14.0, 1.62, 3.0), Vector3(20.0, 1.2, 3.0), true],
+	["n_hero_room_dark", Vector3(1.8, 1.62, 2.2), Vector3(7.0, 1.0, 2.6), false],
+	["n_hall_flashlight", Vector3(10.0, 1.62, 9.0), Vector3(10.0, 1.0, 1.0), true],
+	["n_monster", Vector3(10.0, 1.62, 6.5), Vector3(10.0, 1.6, 2.6), true],
 ]
 
 
@@ -33,12 +41,24 @@ func _ready() -> void:
 	var cam := player.camera
 	for v: Array in VIEWS_MORNING:
 		await _shot(cam, v[1], v[2], dir + "/" + v[0] + ".png")
+	# Monster close-ups in daylight (AI off, poses forced).
+	var monster: Monster = (load("res://scenes/monster/monster.tscn") as PackedScene).instantiate()
+	game.add_child(monster)
+	monster.set_physics_process(false)  # AI off: the model plays whatever we set
+	monster.global_position = Vector3(10.0, 0.05, 2.6)
+	monster.rotation.y = PI  # facing south, towards the cameras
+	for v: Array in VIEWS_MONSTER:
+		monster.model.pose = v[3]
+		monster.model.move_speed = v[4]
+		await get_tree().create_timer(0.6).timeout
+		await _shot(cam, v[1], v[2], dir + "/" + v[0] + ".png")
+	monster.queue_free()
 	# Night.
 	game.quests.complete_morning_instantly()
 	game._start_night()
 	game.monster.active = false
-	game.monster.global_position = Vector3(20.0, 0.05, 3.0)
-	game.monster.rotation.y = -PI * 0.5
+	game.monster.global_position = Vector3(10.0, 0.05, 2.6)
+	game.monster.rotation.y = PI
 	player.add_item(Pickup.Item.FLASHLIGHT)
 	await get_tree().create_timer(0.5).timeout
 	for v: Array in VIEWS_NIGHT:

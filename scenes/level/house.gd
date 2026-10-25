@@ -1,23 +1,30 @@
 class_name House
 extends NavigationRegion3D
 ## Builds the whole house from primitives at runtime and bakes the monster's navmesh.
+## The layout follows docs/reference/house_plan.png (a three-room flat), scaled up so the 2.5 m
+## monster fits through the doors.
 ##
-## Plan (metres, X → east, Z → south; door/vent offsets are centres):
+## Plan (metres, X → east, Z → south; wall centre lines; V = vent, D = doorway):
 ##
-##   z=0  +------------------+----------------------------+
-##        | KITCHEN          |  LIVING ROOM               |
-##        | fridge, table    D  bed, TV                   |
-##   z=7  +--D---------------+----------------------D-----+
-##        | CORRIDOR  (dressers with vases and mirrors)   |
-##  z=9.5 +------D-----+--D--+-----D--------------D-------+
-##        | HERO ROOM  | BATH|  ENTRY HALL            [front door]
-##        | (dead end) |(dead|                              |
-##        |            | end)|                              |
-##   z=18 +--V---------+--V--+------------V----------------+
-##        |  vent duct (crouch only), fans at every dead end  |
+##        north vent duct (crouch only, fans at both ends)
+##   z=0    +-------V------------+-----+------+----------V-----------+
+##          | HERO ROOM          |CLOS.|CLOS. |  PARENTS' ROOM       |
+##          | bed, desk, wardrobe| 1   +--D---+  bed, wardrobe,      |
+##          | toy box            +--D--+      D  dresser             |
+##  z=4.8   +----D---------------+     HALL   +----------------------+
+##          | LIVING ROOM        :  (dresser) |
+##   [bal-  D TV, sofa-bed       :  open arch |
+##    cony] |                    :            |
+##  z=9.6   +--------------+-----+-------D----+
+##          | KITCHEN      D    CORRIDOR      |
+##          | fridge,table +--D---+--D--+     |
+##          |              | BATH | WC  |VEST.| (dresser)
+##  z=14.2  +---V----------+--V---+-----+--D--+
+##        south vent duct           front door
 ##
-## Loops: corridor <-> kitchen <-> living room <-> corridor, and corridor <-> entry hall (two openings).
-## Dead ends: hero room and bathroom — both have a vent the monster can't fit into.
+## On foot the flat is a tree (every room is a dead end off the hall/corridor), so the two vent
+## ducts are the loops: hero room <-> parents' room and kitchen <-> bathroom. The monster can't
+## fit into a vent. The balcony door is jammed.
 
 const H := 2.8  ## wall height
 const T := 0.2  ## wall thickness
@@ -25,12 +32,17 @@ const DOOR_W := 1.2
 const DOOR_H := 2.5
 const VENT_W := 0.9
 const VENT_H := 1.0
-const DUCT_Z0 := 18.1
-const DUCT_Z1 := 19.1
-const DUCT_X0 := -1.2
-const DUCT_X1 := 25.2
-const BRANCH_X := 8.0
-const BRANCH_Z1 := 21.5
+const DUCT_DEPTH := 1.0
+
+const X_EAST := 20.5  ## east wall of the parents' room
+const X_HALL := 12.0  ## east wall of the hall / corridor
+const Z_ROOMS := 4.8  ## south wall of the hero and parents' rooms
+const Z_MID := 9.6  ## living room / hall | kitchen / corridor
+const Z_SOUTH := 14.2
+const NORTH_VENTS: Array[float] = [5.6, 16.0]  ## hero room, parents' room
+const SOUTH_VENTS: Array[float] = [1.4, 5.25]  ## kitchen, bathroom
+const NORTH_DUCT_X := Vector2(-1.2, 21.7)
+const SOUTH_DUCT_X := Vector2(-1.2, 9.0)
 
 const C_WALL := Color("b7a48a")
 const C_WALL_TRIM := Color("8c7a62")
@@ -48,6 +60,7 @@ var toy_zone: ItemZone
 var tv: Tv
 var hero_bed: Interactable
 var front_door: HingedDoor
+var balcony_door: HingedDoor
 var key_spots: Array[Node3D] = []
 var battery_spots: Array[Node3D] = []
 var flashlight_spot: Node3D
@@ -57,9 +70,9 @@ var cereal: Prop
 var milk: Prop
 var lamp_light: OmniLight3D
 
-var player_spawn_morning := Transform3D(Basis(Vector3.UP, PI * 0.75), Vector3(3.0, 0.05, 12.6))
-var player_spawn_night := Transform3D(Basis(Vector3.UP, -PI * 0.5), Vector3(1.75, 0.05, 12.0))
-var monster_spawn := Vector3(22.0, 0.05, 2.0)
+var player_spawn_morning := Transform3D(Basis(Vector3.UP, -PI * 0.4), Vector3(2.6, 0.05, 3.9))
+var player_spawn_night := Transform3D(Basis(Vector3.UP, -PI * 0.5), Vector3(1.7, 0.05, 2.2))
+var monster_spawn := Vector3(16.5, 0.05, 2.6)
 
 var _room_lights: Array[OmniLight3D] = []
 var _fixtures: Array[MeshInstance3D] = []
@@ -71,13 +84,18 @@ func build() -> void:
 	_props_root.name = "Props"
 	add_child(_props_root)
 	_build_shell()
-	_build_duct()
-	_build_kitchen()
-	_build_living_room()
-	_build_corridor()
+	_build_duct("NorthDuct", 0.0, -1.0, NORTH_DUCT_X, Vector2(-0.1, X_EAST + 0.1))
+	_build_duct("SouthDuct", Z_SOUTH, 1.0, SOUTH_DUCT_X, Vector2(-0.1, X_HALL + 0.1))
+	_spot("BatteryDuct", battery_spots, Vector3(10.5, 0.02, -0.6))  # behind the closets
+	_build_balcony()
 	_build_hero_room()
+	_build_living_room()
+	_build_hall()
+	_build_parents_room()
+	_build_kitchen()
+	_build_corridor()
 	_build_bathroom()
-	_build_entry_hall()
+	_build_wc()
 	_build_patrol_points()
 	_bake_navmesh()
 
@@ -102,55 +120,70 @@ func add_prop(prop: Node3D, pos: Vector3, yaw: float = 0.0) -> Node3D:
 func _build_shell() -> void:
 	var shell := _group("Shell")
 	# Floors per room (top surface at y = 0).
-	_floor(shell, Rect2(0, 0, 10, 7), Color("8e9aa1"))  # kitchen tiles
-	_floor(shell, Rect2(10, 0, 14, 7), Color("6b4a32"))  # living room wood
-	_floor(shell, Rect2(0, 7, 24, 2.5), Color("5a4636"))  # corridor
-	_floor(shell, Rect2(0, 9.5, 9, 8.5), Color("46607d"))  # hero room carpet
-	_floor(shell, Rect2(9, 9.5, 6, 8.5), Color("cfd8dc"))  # bathroom tiles
-	_floor(shell, Rect2(15, 9.5, 9, 8.5), Color("5d5148"))  # entry hall
+	_floor(shell, Rect2(0, 0, 8, Z_ROOMS), Color("46607d"))  # hero room carpet
+	_floor(shell, Rect2(0, Z_ROOMS, 8, Z_MID - Z_ROOMS), Color("6b4a32"))  # living room wood
+	_floor(shell, Rect2(8, 0, X_HALL - 8, Z_MID), Color("5a4636"))  # hall + closets
+	_floor(shell, Rect2(X_HALL, 0, X_EAST - X_HALL, Z_ROOMS), Color("6f5a4a"))  # parents' room
+	_floor(shell, Rect2(0, Z_MID, 4.6, Z_SOUTH - Z_MID), Color("8e9aa1"))  # kitchen tiles
+	_floor(shell, Rect2(4.6, Z_MID, X_HALL - 4.6, 1.8), Color("5a4636"))  # corridor
+	_floor(shell, Rect2(4.6, 11.4, 2.2, Z_SOUTH - 11.4), Color("cfd8dc"))  # bathroom tiles
+	_floor(shell, Rect2(6.8, 11.4, 2.0, Z_SOUTH - 11.4), Color("c3ccd0"))  # WC tiles
+	_floor(shell, Rect2(8.8, 11.4, X_HALL - 8.8, Z_SOUTH - 11.4), Color("5d5148"))  # vestibule
 	# Ceiling.
-	_box(shell, Vector3(24.4, 0.1, 18.4), Vector3(12, H + 0.05, 9), Color("d9d4c8"))
+	_box(shell, Vector3(X_EAST + 0.3, 0.1, Z_SOUTH + 0.4), Vector3(X_EAST * 0.5, H + 0.05, Z_SOUTH * 0.5), Color("d9d4c8"))
 
 	# Exterior walls.
-	_wall_x(shell, 0.0, -0.1, 24.1, [])
-	_wall_x(shell, 18.0, -0.1, 24.1, [[2.5, VENT_W, VENT_H], [11.8, VENT_W, VENT_H], [20.5, VENT_W, VENT_H]])
-	_wall_z(shell, 0.0, 0.0, 18.0, [])
-	_wall_z(shell, 24.0, 0.0, 18.0, [[13.5, DOOR_W, DOOR_H]])
+	var north_vents := NORTH_VENTS.map(func(x: float) -> Array: return [x, VENT_W, VENT_H])
+	var south_vents := SOUTH_VENTS.map(func(x: float) -> Array: return [x, VENT_W, VENT_H])
+	_wall_x(shell, 0.0, -0.1, X_EAST + 0.1, north_vents)
+	_wall_z(shell, 0.0, 0.0, Z_SOUTH, [[8.0, DOOR_W, DOOR_H]])  # balcony door
+	_wall_z(shell, X_EAST, 0.0, Z_ROOMS, [])
+	_wall_x(shell, Z_ROOMS, X_HALL, X_EAST + 0.1, [])
+	_wall_z(shell, X_HALL, 0.0, Z_SOUTH, [[3.4, DOOR_W, DOOR_H]])  # hall | parents' room, then outside
+	_wall_x(shell, Z_SOUTH, -0.1, X_HALL + 0.1, south_vents + [[10.4, DOOR_W, DOOR_H]])
 	# Interior walls.
-	_wall_z(shell, 10.0, 0.0, 7.0, [[3.5, DOOR_W, DOOR_H]])  # kitchen | living
-	_wall_x(shell, 7.0, 0.0, 24.0, [[2.5, DOOR_W, DOOR_H], [21.0, DOOR_W, DOOR_H]])  # rooms | corridor
-	_wall_x(shell, 9.5, 0.0, 24.0, [[6.0, DOOR_W, DOOR_H], [10.8, DOOR_W, DOOR_H], [16.3, 1.4, DOOR_H], [22.7, 1.4, DOOR_H]])
-	_wall_z(shell, 9.0, 9.5, 18.0, [])  # hero room | bathroom
-	_wall_z(shell, 15.0, 9.5, 18.0, [])  # bathroom | entry hall
+	_wall_x(shell, Z_ROOMS, 0.0, 8.0, [[2.2, DOOR_W, DOOR_H]])  # hero room | living room
+	_wall_z(shell, 8.0, 0.0, Z_ROOMS, [])  # hero room | closet + hall
+	_wall_z(shell, 8.0, Z_ROOMS, Z_MID, [[7.2, Z_MID - Z_ROOMS, DOOR_H]])  # open arch: lintel only
+	_wall_z(shell, 9.5, 0.0, 2.6, [])  # closet 1 | closet 2
+	_wall_x(shell, 2.6, 8.0, 9.5, [[8.75, 1.1, DOOR_H]])  # closet 1 doorway
+	_wall_x(shell, 1.6, 9.5, X_HALL, [[10.75, DOOR_W, DOOR_H]])  # closet 2 doorway
+	_wall_x(shell, Z_MID, 0.0, X_HALL, [[10.4, DOOR_W, DOOR_H]])  # hall | corridor
+	_wall_z(shell, 4.6, Z_MID, Z_SOUTH, [[10.6, DOOR_W, DOOR_H]])  # kitchen | corridor
+	_wall_x(shell, 11.4, 4.6, 8.8, [[5.7, DOOR_W, DOOR_H], [7.8, DOOR_W, DOOR_H]])  # bath, WC doors
+	_wall_z(shell, 6.8, 11.4, Z_SOUTH, [])  # bath | WC
+	_wall_z(shell, 8.8, 11.4, Z_SOUTH, [])  # WC | vestibule
 
 	# Vent openings: frame on the room side and the removed grate leaning next to it.
-	for x: float in [2.5, 11.8, 20.5]:
-		_vent_frame(shell, x)
+	for x in NORTH_VENTS:
+		_vent_frame(shell, x, 0.0, 1.0)
+	for x in SOUTH_VENTS:
+		_vent_frame(shell, x, Z_SOUTH, -1.0)
 
-	# Front door (locked until the player has the key).
+	# Front door (locked until the player has the key), opens outwards.
 	front_door = HingedDoor.new()
 	front_door.name = "FrontDoor"
-	front_door.position = Vector3(24.0, 0.0, 12.9)
-	front_door.rotation.y = -PI * 0.5
+	front_door.position = Vector3(10.4 - DOOR_W * 0.5, 0.0, Z_SOUTH)
 	front_door.open_angle = deg_to_rad(-100)
 	front_door.open_prompt = "Открыть входную дверь"
 	front_door.close_prompt = ""
 	front_door.locked_prompt = "Заперто. Нужен ключ"
 	front_door.can_open = func(p: Player) -> bool: return p.has_key
-	front_door.build_panel(Vector3(1.2, DOOR_H, 0.08), Color("5b3a24"), false)
+	front_door.build_panel(Vector3(DOOR_W, DOOR_H, 0.08), Color("5b3a24"), false)
 	shell.add_child(front_door)
 
 
-func _vent_frame(parent: Node3D, x: float) -> void:
-	var z := 18.0 - T * 0.5 - 0.02
+## Vent opening in a wall along X at wall_z; `inward` is +1 / -1: which side of it is the room.
+func _vent_frame(parent: Node3D, x: float, wall_z: float, inward: float) -> void:
+	var z := wall_z + inward * (T * 0.5 + 0.02)
 	var c := Color("9aa0a6")
 	_mesh(parent, Lowpoly.box(Vector3(VENT_W + 0.12, 0.06, 0.04)), c, Vector3(x, VENT_H + 0.03, z))
 	_mesh(parent, Lowpoly.box(Vector3(0.06, VENT_H, 0.04)), c, Vector3(x - VENT_W * 0.5 - 0.03, VENT_H * 0.5, z))
 	_mesh(parent, Lowpoly.box(Vector3(0.06, VENT_H, 0.04)), c, Vector3(x + VENT_W * 0.5 + 0.03, VENT_H * 0.5, z))
 	# The removed grate leans against the wall next to the opening.
 	var grate := Node3D.new()
-	grate.position = Vector3(x + VENT_W * 0.5 + 0.6, 0.0, z - 0.22)
-	grate.rotation = Vector3(0.2, 0.0, 0.0)
+	grate.position = Vector3(x + VENT_W * 0.5 + 0.6, 0.0, z + inward * 0.22)
+	grate.rotation = Vector3(-0.2 * inward, 0.0, 0.0)
 	parent.add_child(grate)
 	var gw := VENT_W - 0.05
 	for sx: float in [-1.0, 1.0]:
@@ -159,45 +192,37 @@ func _vent_frame(parent: Node3D, x: float) -> void:
 		_mesh(grate, Lowpoly.box(Vector3(gw, 0.025, 0.02)), c, Vector3(0, 0.06 + i * 0.14, 0))
 
 
-# --- vent duct --------------------------------------------------------------
+# --- vent ducts -------------------------------------------------------------
 
-func _build_duct() -> void:
-	var duct := _group("VentDuct")
+## Straight duct outside the wall along X at wall_z. `side` = -1 (north of it) or +1 (south).
+## `span` is the duct's x range; `house_span` is where the house wall closes its inner side.
+func _build_duct(n: String, wall_z: float, side: float, span: Vector2, house_span: Vector2) -> void:
+	var duct := _group(n)
 	var c := Color("7d848b")
-	var length := DUCT_X1 - DUCT_X0
-	var cx := (DUCT_X0 + DUCT_X1) * 0.5
-	var depth := DUCT_Z1 - DUCT_Z0
-	var cz := (DUCT_Z0 + DUCT_Z1) * 0.5
-	# Floor and ceiling of the main run (ceiling also covers the house wall top edge gap).
-	_box(duct, Vector3(length + 0.4, 0.1, depth + 0.4), Vector3(cx, -0.05, cz), c.darkened(0.3))
-	_box(duct, Vector3(length + 0.4, 0.1, depth + 0.4), Vector3(cx, VENT_H + 0.05, cz), c)
-	# Outer (south) wall with a gap for the branch.
-	var bx0 := BRANCH_X - 0.5
-	var bx1 := BRANCH_X + 0.5
-	_box(duct, Vector3(bx0 - DUCT_X0 + 0.2, VENT_H, 0.2), Vector3((DUCT_X0 - 0.2 + bx0) * 0.5, VENT_H * 0.5, DUCT_Z1 + 0.1), c)
-	_box(duct, Vector3(DUCT_X1 + 0.2 - bx1, VENT_H, 0.2), Vector3((bx1 + DUCT_X1 + 0.2) * 0.5, VENT_H * 0.5, DUCT_Z1 + 0.1), c)
-	# North wall where the duct runs past the house corners.
-	_box(duct, Vector3(-DUCT_X0 + 0.2, VENT_H, T), Vector3((DUCT_X0 - 0.2) * 0.5, VENT_H * 0.5, 18.0), c)
-	_box(duct, Vector3(DUCT_X1 - 24.0 + 0.2, VENT_H, T), Vector3((24.0 + DUCT_X1 + 0.2) * 0.5, VENT_H * 0.5, 18.0), c)
-	# South branch.
-	var blen := BRANCH_Z1 - DUCT_Z1
-	var bcz := (DUCT_Z1 + BRANCH_Z1) * 0.5
-	_box(duct, Vector3(1.4, 0.1, blen + 0.2), Vector3(BRANCH_X, -0.05, bcz + 0.1), c.darkened(0.3))
-	_box(duct, Vector3(1.4, 0.1, blen + 0.2), Vector3(BRANCH_X, VENT_H + 0.05, bcz + 0.1), c)
-	_box(duct, Vector3(0.2, VENT_H, blen + 0.2), Vector3(bx0 - 0.1, VENT_H * 0.5, bcz + 0.1), c)
-	_box(duct, Vector3(0.2, VENT_H, blen + 0.2), Vector3(bx1 + 0.1, VENT_H * 0.5, bcz + 0.1), c)
-	# Fans at the three dead ends (they double as the end caps).
-	_fan(duct, Vector3(DUCT_X0, VENT_H * 0.5, cz), PI * 0.5, depth)
-	_fan(duct, Vector3(DUCT_X1, VENT_H * 0.5, cz), -PI * 0.5, depth)
-	_fan(duct, Vector3(BRANCH_X, VENT_H * 0.5, BRANCH_Z1), PI, 1.0)
+	var length := span.y - span.x
+	var cx := (span.x + span.y) * 0.5
+	var z_in := wall_z + side * T * 0.5
+	var cz := z_in + side * DUCT_DEPTH * 0.5
+	# Floor and ceiling (they reach under / into the house wall, closing the gaps at the openings).
+	_box(duct, Vector3(length + 0.4, 0.1, DUCT_DEPTH + 0.4), Vector3(cx, -0.05, cz), c.darkened(0.3))
+	_box(duct, Vector3(length + 0.4, 0.1, DUCT_DEPTH + 0.4), Vector3(cx, VENT_H + 0.05, cz), c)
+	# Outer wall, and inner walls where the duct runs past the house corners.
+	_box(duct, Vector3(length + 0.4, VENT_H, 0.2), Vector3(cx, VENT_H * 0.5, z_in + side * (DUCT_DEPTH + 0.1)), c)
+	if span.x < house_span.x:
+		_box(duct, Vector3(house_span.x - span.x + 0.2, VENT_H, T), Vector3((span.x - 0.2 + house_span.x) * 0.5, VENT_H * 0.5, wall_z), c)
+	if span.y > house_span.y:
+		_box(duct, Vector3(span.y - house_span.y + 0.2, VENT_H, T), Vector3((house_span.y + span.y + 0.2) * 0.5, VENT_H * 0.5, wall_z), c)
+	# Fans at both dead ends (they double as the end caps).
+	_fan(duct, Vector3(span.x, VENT_H * 0.5, cz), PI * 0.5, DUCT_DEPTH)
+	_fan(duct, Vector3(span.y, VENT_H * 0.5, cz), -PI * 0.5, DUCT_DEPTH)
 	# Seams for a bit of visual rhythm.
-	var x := DUCT_X0 + 1.5
-	while x < DUCT_X1:
-		_mesh(duct, Lowpoly.box(Vector3(0.04, 0.02, depth)), c.lightened(0.15), Vector3(x, VENT_H - 0.01, cz))
+	var x := span.x + 1.5
+	while x < span.y:
+		_mesh(duct, Lowpoly.box(Vector3(0.04, 0.02, DUCT_DEPTH)), c.lightened(0.15), Vector3(x, VENT_H - 0.01, cz))
 		x += 2.0
-	_spot("BatteryDuct", battery_spots, Vector3(BRANCH_X, 0.02, BRANCH_Z1 - 0.7))
 	# Dim service lights (morning only) so the duct can be explored before night.
-	for lx: float in [2.0, 12.0, 21.0]:
+	var lx := span.x + 3.0
+	while lx < span.y - 1.0:
 		var l := OmniLight3D.new()
 		l.position = Vector3(lx, VENT_H - 0.15, cz)
 		l.light_color = Color("cfe0ff")
@@ -205,6 +230,7 @@ func _build_duct() -> void:
 		l.omni_range = 4.0
 		duct.add_child(l)
 		_room_lights.append(l)
+		lx += 6.0
 
 
 func _fan(parent: Node3D, pos: Vector3, yaw: float, width: float) -> void:
@@ -214,86 +240,52 @@ func _fan(parent: Node3D, pos: Vector3, yaw: float, width: float) -> void:
 	parent.add_child(fan)
 
 
+## Small glazed balcony behind a jammed door (as on the plan; not playable in the alpha).
+func _build_balcony() -> void:
+	var b := _group("Balcony")
+	_box(b, Vector3(1.6, 0.2, 3.0), Vector3(-0.9, -0.1, 8.0), Color("6d6d6d"))
+	_box(b, Vector3(0.1, 1.0, 3.0), Vector3(-1.65, 0.5, 8.0), Color("8a8a8a"))
+	_box(b, Vector3(1.6, 1.0, 0.1), Vector3(-0.9, 0.5, 6.55), Color("8a8a8a"))
+	_box(b, Vector3(1.6, 1.0, 0.1), Vector3(-0.9, 0.5, 9.45), Color("8a8a8a"))
+	_box(b, Vector3(1.8, 0.1, 3.2), Vector3(-0.9, H - 0.2, 8.0), Color("8a8a8a"))
+	balcony_door = HingedDoor.new()
+	balcony_door.name = "BalconyDoor"
+	balcony_door.position = Vector3(0.0, 0.0, 8.0 - DOOR_W * 0.5)
+	balcony_door.rotation.y = -PI * 0.5
+	balcony_door.locked_prompt = "Балконную дверь заклинило"
+	balcony_door.can_open = func(_p: Player) -> bool: return false
+	balcony_door.build_panel(Vector3(DOOR_W, DOOR_H, 0.08), Color("d8d2c4"), false)
+	_mesh(balcony_door, Lowpoly.box(Vector3(0.7, 1.1, 0.09)), Color("1d2a3a"), Vector3(DOOR_W * 0.5, 1.6, 0))
+	b.add_child(balcony_door)
+
+
 # --- rooms ------------------------------------------------------------------
-
-func _build_kitchen() -> void:
-	var room := _group("Kitchen")
-	_room_light(room, Vector3(5.0, H, 3.5))
-	# Fridge in the north-west corner, door facing the room.
-	var fridge := _furniture(room, Vector3(0.6, 0, 0.5), 0.0)
-	fridge_door = _build_fridge(fridge)
-	# Counter + stove along the north wall.
-	_box(room, Vector3(3.4, 0.9, 0.6), Vector3(2.85, 0.45, 0.4), Color("cfc6b4"))
-	_box(room, Vector3(3.44, 0.04, 0.64), Vector3(2.85, 0.92, 0.4), Color("3b3f45"), false)
-	_box(room, Vector3(0.8, 0.9, 0.6), Vector3(5.0, 0.45, 0.4), Color("e0e0e0"))
-	for dx: float in [-0.18, 0.18]:
-		_mesh(room, Lowpoly.cylinder(0.12, 0.02, 8), Color("222222"), Vector3(5.0 + dx, 0.91, 0.4))
-	# Table, chairs, bowl.
-	var table := _furniture(room, Vector3(5.5, 0, 3.6), 0.0)
-	_build_table(table, Vector3(1.6, 0.75, 0.9))
-	for side: float in [-1.0, 1.0]:
-		var chair := _furniture(room, Vector3(5.5, 0, 3.6 + side * 0.85), 0.0 if side > 0 else PI)
-		_build_chair(chair)
-	_build_bowl(Vector3(5.5, 0.78, 3.6))
-	cereal = add_prop(SimpleProps.cereal_box(), Vector3(2.2, 0.95, 0.4), 0.2) as Prop
-	_spot("BatteryKitchen", battery_spots, Vector3(3.8, 0.95, 0.35))
-
-
-func _build_living_room() -> void:
-	var room := _group("LivingRoom")
-	_room_light(room, Vector3(17.0, H, 3.5))
-	# TV stand + TV against the north wall.
-	_box(room, Vector3(1.6, 0.5, 0.5), Vector3(17.0, 0.25, 0.4), C_WOOD_DARK)
-	tv = Tv.create()
-	tv.position = Vector3(17.0, 0.5, 0.4)
-	room.add_child(tv)
-	# Sofa-bed along the south wall, open side facing the TV.
-	var bed := _furniture(room, Vector3(16.0, 0, 6.2), PI)
-	_build_bed(bed, Vector3(2.0, 0, 1.2), Color("7b3f3f"), null)
-	# Armchair.
-	_box(room, Vector3(0.8, 0.45, 0.8), Vector3(12.0, 0.225, 2.0), Color("5e4a6b"))
-	_box(room, Vector3(0.8, 0.5, 0.15), Vector3(12.0, 0.7, 1.67), Color("5e4a6b"))
-	# The remote lies on the floor in front of the TV.
-	add_prop(TvRemote.create(tv), Vector3(16.6, 0.05, 3.3), 0.4)
-	_spot("BatteryLiving", battery_spots, Vector3(16.0, 0.52, 0.4))
-
-
-func _build_corridor() -> void:
-	var room := _group("Corridor")
-	_room_light(room, Vector3(5.0, H, 8.25))
-	_room_light(room, Vector3(17.5, H, 8.25))
-	_mesh(room, Lowpoly.box(Vector3(18.0, 0.01, 1.3)), Color("6e2f2f"), Vector3(12.0, 0.005, 8.25))
-	_build_dresser(room, Vector3(7.0, 0, 7.1 + 0.225), 0.0, Color("8fb3c9"))
-	_build_dresser(room, Vector3(13.6, 0, 9.4 - 0.225), PI, Color("c98f8f"))
-	# The duck is right outside the bathroom — easy to step on in the dark.
-	add_prop(Duck.create(), Vector3(9.4, 0.05, 8.4), 0.8)
-
 
 func _build_hero_room() -> void:
 	var room := _group("HeroRoom")
-	_room_light(room, Vector3(4.5, H, 13.5))
+	_room_light(room, Vector3(4.0, H, 2.4))
 	# Bed along the west wall, open side facing east. Sleeping here ends the morning.
-	var bed := _furniture(room, Vector3(0.7, 0, 12.0), PI * 0.5)
+	var bed := _furniture(room, Vector3(0.6, 0, 2.2), PI * 0.5)
 	hero_bed = Interactable.new()
 	var under_bed := _build_bed(bed, Vector3(2.0, 0, 1.0), Color("3f6b9e"), hero_bed)
 	key_spots.append(under_bed)
-	# Desk with lamp against the south wall.
-	var desk := _furniture(room, Vector3(6.5, 0, 17.9 - 0.3), PI)
+	# Desk with lamp against the north wall.
+	var desk := _furniture(room, Vector3(3.0, 0, 0.1 + 0.3), 0.0)
 	_build_table(desk, Vector3(1.3, 0.74, 0.6))
-	_build_lamp(desk, Vector3(-0.45, 0.76, 0.1))
-	flashlight_spot = _spot("FlashlightSpot", [], Vector3(6.2, 0.78, 17.55))
+	_build_lamp(desk, Vector3(-0.45, 0.76, -0.1))
+	flashlight_spot = _spot("FlashlightSpot", [], Vector3(3.3, 0.78, 0.45))
 	# Wardrobe against the east wall.
-	var wardrobe := _furniture(room, Vector3(8.9 - 0.3, 0, 14.5), -PI * 0.5)
+	var wardrobe := _furniture(room, Vector3(7.9 - 0.3, 0, 2.4), -PI * 0.5)
 	var shelf_spots := _build_wardrobe(wardrobe)
 	# Toy box in the middle of the room — empty until the quest.
-	var box := _furniture(room, Vector3(4.5, 0, 13.8), 0.2)
+	var box := _furniture(room, Vector3(4.2, 0, 2.6), 0.2)
 	toy_zone = _build_toy_box(box)
 	# Toys: two on the wardrobe shelf, one under the bed, the rest on the floor.
 	var kinds := [Toy.Kind.TEDDY, Toy.Kind.BLOCK, Toy.Kind.CAR, Toy.Kind.BALL, Toy.Kind.PYRAMID, Toy.Kind.BLOCK, Toy.Kind.CAR]
 	var spots: Array[Vector3] = [
 		shelf_spots[0], shelf_spots[1],
 		under_bed.global_position + Vector3(0.1, 0.05, -0.2),
-		Vector3(2.6, 0.03, 10.8), Vector3(6.9, 0.03, 11.4), Vector3(3.1, 0.03, 16.2), Vector3(5.6, 0.03, 15.4),
+		Vector3(2.4, 0.03, 4.1), Vector3(6.2, 0.03, 3.9), Vector3(2.9, 0.03, 1.5), Vector3(5.3, 0.03, 1.6),
 	]
 	for i in kinds.size():
 		var toy := Toy.create(kinds[i], i)
@@ -301,45 +293,134 @@ func _build_hero_room() -> void:
 		toys.append(toy)
 
 
+func _build_living_room() -> void:
+	var room := _group("LivingRoom")
+	_room_light(room, Vector3(4.0, H, 7.2))
+	_mesh(room, Lowpoly.box(Vector3(3.2, 0.01, 2.0)), Color("6e2f2f"), Vector3(4.6, 0.005, 7.4))
+	# TV stand + TV against the south wall, facing north.
+	_box(room, Vector3(1.6, 0.5, 0.5), Vector3(4.6, 0.25, Z_MID - 0.35), C_WOOD_DARK)
+	tv = Tv.create()
+	tv.position = Vector3(4.6, 0.5, Z_MID - 0.35)
+	tv.rotation.y = PI
+	room.add_child(tv)
+	# Sofa-bed by the north wall, open side facing the TV.
+	var bed := _furniture(room, Vector3(4.8, 0, Z_ROOMS + 0.8), 0.0)
+	_build_bed(bed, Vector3(2.0, 0, 1.2), Color("7b3f3f"), null)
+	# Armchair by the west wall.
+	_box(room, Vector3(0.8, 0.45, 0.8), Vector3(1.0, 0.225, 6.4), Color("5e4a6b"))
+	_box(room, Vector3(0.15, 0.5, 0.8), Vector3(0.67, 0.7, 6.4), Color("5e4a6b"))
+	# The remote lies on the floor in front of the TV.
+	add_prop(TvRemote.create(tv), Vector3(4.0, 0.05, 7.7), 0.4)
+	_spot("BatteryLiving", battery_spots, Vector3(4.0, 0.52, Z_MID - 0.35))
+
+
+func _build_hall() -> void:
+	var room := _group("Hall")
+	_room_light(room, Vector3(10.0, H, 5.6))
+	_mesh(room, Lowpoly.box(Vector3(1.4, 0.01, 5.0)), Color("6e2f2f"), Vector3(10.0, 0.005, 6.4))
+	_build_dresser(room, Vector3(X_HALL - 0.1 - 0.225, 0, 6.6), -PI * 0.5, Color("8fb3c9"))
+	# The duck is right by the doorway to the corridor — easy to step on in the dark.
+	add_prop(Duck.create(), Vector3(9.9, 0.05, 8.9), 0.8)
+	# Storage closets: shelves with junk.
+	var s1 := _furniture(room, Vector3(8.75, 0, 0.1 + 0.18), 0.0)
+	_build_shelf(s1, 1.1)
+	var s2 := _furniture(room, Vector3(10.75, 0, 0.1 + 0.18), 0.0)
+	_build_shelf(s2, 2.0)
+	_spot("BatteryCloset", battery_spots, s2.to_global(Vector3(-0.5, 0.79, 0.0)))
+
+
+func _build_parents_room() -> void:
+	var room := _group("ParentsRoom")
+	_room_light(room, Vector3(16.2, H, 2.4))
+	# Double bed against the east wall.
+	var bed := _furniture(room, Vector3(X_EAST - 0.1 - 0.8, 0, 2.4), -PI * 0.5)
+	_build_bed(bed, Vector3(2.0, 0, 1.6), Color("8a6a3f"), null)
+	var wardrobe := _furniture(room, Vector3(15.0, 0, Z_ROOMS - 0.1 - 0.3), PI)
+	_build_wardrobe(wardrobe)
+	_build_dresser(room, Vector3(13.3, 0, 0.1 + 0.225), 0.0, Color("c98f8f"))
+
+
+func _build_kitchen() -> void:
+	var room := _group("Kitchen")
+	_room_light(room, Vector3(2.3, H, 11.9))
+	# Fridge in the north-west corner, door facing the room.
+	var fridge := _furniture(room, Vector3(0.55, 0, Z_MID + 0.1 + 0.35), 0.0)
+	fridge_door = _build_fridge(fridge)
+	# Counter + stove along the north wall (clear of the doorway in the east wall).
+	var cz := Z_MID + 0.1 + 0.3
+	_box(room, Vector3(1.8, 0.9, 0.6), Vector3(1.95, 0.45, cz), Color("cfc6b4"))
+	_box(room, Vector3(1.84, 0.04, 0.64), Vector3(1.95, 0.92, cz), Color("3b3f45"), false)
+	_box(room, Vector3(0.8, 0.9, 0.6), Vector3(3.25, 0.45, cz), Color("e0e0e0"))
+	for dx: float in [-0.18, 0.18]:
+		_mesh(room, Lowpoly.cylinder(0.12, 0.02, 8), Color("222222"), Vector3(3.25 + dx, 0.91, cz))
+	# Table (long side north-south), chairs, bowl.
+	var table := _furniture(room, Vector3(2.6, 0, 12.2), PI * 0.5)
+	_build_table(table, Vector3(1.6, 0.75, 0.9))
+	for side: float in [-1.0, 1.0]:
+		var chair := _furniture(room, Vector3(2.6 + side * 0.85, 0, 12.2), PI * 0.5 * side)
+		_build_chair(chair)
+	_build_bowl(Vector3(2.6, 0.78, 12.2))
+	cereal = add_prop(SimpleProps.cereal_box(), Vector3(1.4, 0.95, cz), 0.2) as Prop
+	_spot("BatteryKitchen", battery_spots, Vector3(2.4, 0.95, cz - 0.05))
+
+
+func _build_corridor() -> void:
+	var room := _group("Corridor")
+	_room_light(room, Vector3(7.0, H, 10.5))
+	_room_light(room, Vector3(10.4, H, 12.8))
+	_mesh(room, Lowpoly.box(Vector3(6.0, 0.01, 0.9)), Color("6e2f2f"), Vector3(8.3, 0.005, 10.5))
+	_mesh(room, Lowpoly.box(Vector3(1.4, 0.01, 0.8)), Color("3d4a3a"), Vector3(10.4, 0.005, Z_SOUTH - 0.6))
+	_build_dresser(room, Vector3(X_HALL - 0.1 - 0.225, 0, 12.9), -PI * 0.5, Color("a9c98f"))
+
+
 func _build_bathroom() -> void:
 	var room := _group("Bathroom")
-	_room_light(room, Vector3(12.0, H, 13.5))
+	_room_light(room, Vector3(5.7, H, 12.8))
 	# Bathtub along the east wall (solid body + water surface, so there's no navmesh island inside).
-	var tub := _furniture(room, Vector3(14.1, 0, 15.9), 0.0)
+	var tub := _furniture(room, Vector3(6.35, 0, 13.2), 0.0)
 	var tc := Color("f2f2f0")
-	_box(tub, Vector3(1.5, 0.55, 3.6), Vector3(0, 0.275, 0), tc)
-	_mesh(tub, Lowpoly.box(Vector3(1.3, 0.01, 3.4)), Color("9fc4d6"), Vector3(0, 0.555, 0))
-	# Toilet.
-	_box(room, Vector3(0.4, 0.42, 0.55), Vector3(9.35, 0.21, 16.6), tc)
-	_box(room, Vector3(0.18, 0.45, 0.5), Vector3(9.2, 0.65, 16.6), tc)
-	# Sink.
-	_box(room, Vector3(0.18, 0.8, 0.18), Vector3(9.3, 0.4, 12.6), tc)
-	_box(room, Vector3(0.45, 0.12, 0.6), Vector3(9.35, 0.86, 12.6), tc)
-	_mesh(room, Lowpoly.box(Vector3(0.02, 0.6, 0.5)), Color("a9c3d1"), Vector3(9.11, 1.5, 12.6))
-	_spot("BatteryBath", battery_spots, Vector3(9.4, 0.94, 12.45))
+	_box(tub, Vector3(0.65, 0.55, 1.8), Vector3(0, 0.275, 0), tc)
+	_mesh(tub, Lowpoly.box(Vector3(0.5, 0.01, 1.65)), Color("9fc4d6"), Vector3(0, 0.555, 0))
+	# Sink with a mirror on the east wall, by the door.
+	_box(room, Vector3(0.18, 0.8, 0.18), Vector3(6.6, 0.4, 11.9), tc)
+	_box(room, Vector3(0.45, 0.12, 0.55), Vector3(6.475, 0.86, 11.9), tc)
+	_mesh(room, Lowpoly.box(Vector3(0.02, 0.6, 0.5)), Color("a9c3d1"), Vector3(6.69, 1.5, 11.9))
+	_spot("BatteryBath", battery_spots, Vector3(6.45, 0.94, 11.75))
 
 
-func _build_entry_hall() -> void:
-	var room := _group("EntryHall")
-	_room_light(room, Vector3(19.5, H, 13.5))
-	_mesh(room, Lowpoly.box(Vector3(1.4, 0.01, 1.0)), Color("3d4a3a"), Vector3(23.2, 0.005, 13.5))
-	_build_dresser(room, Vector3(18.0, 0, 17.9 - 0.225), PI, Color("a9c98f"))
-	var wardrobe := _furniture(room, Vector3(15.1 + 0.3, 0, 14.0), PI * 0.5)
-	_build_wardrobe(wardrobe)
-	_spot("BatteryEntry", battery_spots, Vector3(23.3, 0.05, 17.3))
+func _build_wc() -> void:
+	var room := _group("WC")
+	_room_light(room, Vector3(7.8, H, 12.8))
+	var tc := Color("f2f2f0")
+	_box(room, Vector3(0.4, 0.42, 0.55), Vector3(7.8, 0.21, Z_SOUTH - 0.1 - 0.3), tc)
+	_box(room, Vector3(0.5, 0.45, 0.18), Vector3(7.8, 0.65, Z_SOUTH - 0.1 - 0.09), tc)
 
 
 func _build_patrol_points() -> void:
 	patrol_points = [
-		Vector3(5.5, 0, 5.6), Vector3(2.0, 0, 3.5),  # kitchen
-		Vector3(13.0, 0, 4.5), Vector3(21.5, 0, 3.0),  # living room
-		Vector3(2.0, 0, 8.25), Vector3(11.0, 0, 8.25), Vector3(20.0, 0, 8.25),  # corridor
-		Vector3(5.0, 0, 11.5), Vector3(11.5, 0, 12.0),  # dead-end rooms
-		Vector3(19.0, 0, 12.0), Vector3(21.0, 0, 16.0),  # entry hall
+		Vector3(5.0, 0, 3.8),  # hero room
+		Vector3(2.0, 0, 7.2), Vector3(6.5, 0, 7.6),  # living room
+		Vector3(10.0, 0, 4.0), Vector3(10.0, 0, 8.3),  # hall
+		Vector3(14.0, 0, 2.4), Vector3(17.5, 0, 3.0),  # parents' room
+		Vector3(0.9, 0, 13.4),  # kitchen
+		Vector3(6.5, 0, 10.5), Vector3(10.4, 0, 12.8),  # corridor, vestibule
+		Vector3(5.3, 0, 12.9), Vector3(7.8, 0, 12.6),  # bathroom, WC
 	]
 
 
 # --- furniture builders (local space: front faces +Z) -----------------------
+
+## Open storage shelf (closets): three planks with boxes on them.
+func _build_shelf(root: Node3D, width: float) -> void:
+	var c := Color("8a7458")
+	var d := 0.36
+	for sx: float in [-1.0, 1.0]:
+		_box(root, Vector3(0.04, 1.8, d), Vector3(sx * (width * 0.5 - 0.02), 0.9, 0), c.darkened(0.2))
+	for i in 3:
+		_box(root, Vector3(width, 0.03, d), Vector3(0, 0.15 + i * 0.62, 0), c)
+	for i in int(width / 0.45):
+		var w := randf_range(0.25, 0.35)
+		_box(root, Vector3(w, randf_range(0.2, 0.35), 0.28), Vector3(-width * 0.5 + 0.25 + i * 0.45, 0.17 + 0.62 * (i % 2 * 2) + 0.12, 0), Color("a68a5c").darkened(randf() * 0.2), false)
 
 func _build_fridge(root: Node3D) -> HingedDoor:
 	var w := 0.8
@@ -645,11 +726,11 @@ func _bake_navmesh() -> void:
 	nm.cell_height = 0.1
 	nm.agent_radius = 0.4
 	# Taller than the clearance above beds/tables (no walkable islands on furniture), lower than
-	# the doorways, and far taller than the vent duct, which the monster can't enter.
+	# the doorways, and far taller than the vent ducts, which the monster can't enter.
 	nm.agent_height = 2.3
 	nm.agent_max_climb = 0.2
-	# Only the house interior: keeps the roof and the duct out of the bake. The top edge just
-	# reaches into the ceiling slab so clearance under it is still measured.
-	nm.filter_baking_aabb = AABB(Vector3(-0.2, -0.3, -0.2), Vector3(24.4, H + 0.35, 18.15))
+	# Only the house interior: keeps the roof, the ducts and the balcony out of the bake. The top
+	# edge just reaches into the ceiling slab so clearance under it is still measured.
+	nm.filter_baking_aabb = AABB(Vector3(-0.1, -0.3, -0.1), Vector3(X_EAST + 0.2, H + 0.35, Z_SOUTH + 0.2))
 	navigation_mesh = nm
 	bake_navigation_mesh(false)
