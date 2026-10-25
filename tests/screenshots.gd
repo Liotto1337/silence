@@ -13,6 +13,11 @@ const VIEWS_MORNING := [
 	["m_bath", Vector3(5.7, 1.62, 10.6), Vector3(5.6, 0.5, 14.0)],
 	["m_duct", Vector3(5.6, 0.7, -0.6), Vector3(16.0, 0.5, -0.6)],
 	["m_under_bed", Vector3(2.1, 0.72, 2.0), Vector3(0.6, 0.05, 2.1)],
+	["m_hero_wall", Vector3(2.0, 1.6, 3.9), Vector3(6.5, 1.0, 0.2)],
+	["m_closets", Vector3(10.6, 1.62, 4.6), Vector3(9.6, 0.9, 0.5)],
+	["m_bath_vent", Vector3(6.4, 1.5, 11.9), Vector3(4.9, 0.4, 14.0)],
+	["m_fridge_open", Vector3(2.6, 1.6, 12.6), Vector3(0.6, 1.0, 10.4)],
+	["m_wc_door", Vector3(9.5, 1.62, 10.3), Vector3(7.0, 1.0, 11.8)],
 ]
 const VIEWS_MONSTER := [
 	["mon_front", Vector3(10.0, 1.6, 5.6), Vector3(10.0, 1.4, 2.6), MonsterModel.Pose.NORMAL, 0.0],
@@ -21,6 +26,9 @@ const VIEWS_MONSTER := [
 	["mon_alert", Vector3(10.0, 1.7, 5.0), Vector3(10.0, 1.5, 2.6), MonsterModel.Pose.ALERT, 0.0],
 	["mon_roar", Vector3(11.0, 1.6, 5.0), Vector3(10.0, 1.6, 2.6), MonsterModel.Pose.ROAR, 0.0],
 	["mon_face", Vector3(10.0, 2.25, 3.6), Vector3(10.0, 2.25, 2.6), MonsterModel.Pose.NORMAL, 0.0],
+	["mon_back", Vector3(9.4, 1.9, 1.7), Vector3(10.0, 1.6, 2.6), MonsterModel.Pose.NORMAL, 0.0],
+	["mon_right_arm", Vector3(9.0, 1.3, 3.5), Vector3(9.7, 1.1, 2.5), MonsterModel.Pose.NORMAL, 0.0],
+	["mon_legs", Vector3(10.6, 0.6, 3.6), Vector3(10.0, 0.35, 2.6), MonsterModel.Pose.NORMAL, 1.3],
 ]
 const VIEWS_NIGHT := [
 	["n_hero_room_dark", Vector3(1.8, 1.62, 2.2), Vector3(7.0, 1.0, 2.6), false],
@@ -39,6 +47,10 @@ func _ready() -> void:
 	player.set_physics_process(false)
 	player.set_process_unhandled_input(false)
 	var cam := player.camera
+	for d in game.house.room_doors:
+		d.open_from(d.global_position + d.global_basis.z)
+	game.house.fridge_door.set_open(true)
+	await get_tree().create_timer(0.5).timeout
 	for v: Array in VIEWS_MORNING:
 		await _shot(cam, v[1], v[2], dir + "/" + v[0] + ".png")
 	# Monster close-ups in daylight (AI off, poses forced).
@@ -66,6 +78,17 @@ func _ready() -> void:
 		player.flashlight.visible = v[3]
 		player.flashlight.light_energy = 2.2
 		await _shot(cam, v[1], v[2], dir + "/" + v[0] + ".png")
+	# Lying under the hero's bed, the monster standing in front of it.
+	player.hide_under(game.house.hero_bed)
+	game.monster.global_position = game.house.hero_bed.exit_position() + Vector3(0.9, 0, 0.3)
+	cam.top_level = false
+	cam.position = Vector3.ZERO
+	cam.rotation = Vector3.ZERO
+	player.flashlight_on = false
+	player.flashlight.visible = false
+	await get_tree().create_timer(0.4).timeout
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(dir + "/n_under_bed.png")
 	get_tree().quit()
 
 

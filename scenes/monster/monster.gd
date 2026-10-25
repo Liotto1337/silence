@@ -12,6 +12,8 @@ extends CharacterBody3D
 ##          player's position every second even without sight.
 ##
 ## Vision follows the head: while looking around a room the head sweeps and the sight cone with it.
+## A player hiding under a bed is invisible to it, unless it saw them crawl in.
+## It opens closed room doors that are in its way.
 
 signal state_changed(state: State)
 signal caught_player
@@ -46,14 +48,17 @@ const CHASE_TRACK_INTERVAL := 1.0
 const LOSE_SIGHT_GIVE_UP := 6.0
 
 const FOV_DEG := 120.0
-const SIGHT_RANGE_LIT := 18.0
-const SIGHT_RANGE_DARK := 9.0
+const SIGHT_RANGE_LIT := 10.0
+const SIGHT_RANGE_DARK := 5.0
 const CROUCH_SIGHT_FACTOR := 0.65
 const PROXIMITY_SENSE := 1.6
 const CATCH_DISTANCE := 1.05
+const HIDDEN_CATCH_DISTANCE := 1.3  ## from the bed's open side: pulls out a player it saw hide there
 const OCCLUDED_HEARING := 0.55
 const EYE_HEIGHT := 2.2
 const STUCK_TIME := 2.5
+const DOOR_REACH := 1.0  ## opens a door this far ahead (plus the distance covered while it swings)
+const SIGHT_MASK := Prop.LAYER_WORLD | Prop.LAYER_DOORS
 
 var state: State = State.SEARCH
 var patience: int = 0
@@ -83,6 +88,7 @@ var _scan_timer: float = 0.0
 var _stuck_timer: float = 0.0
 var _last_patrol: int = -1
 var _sees_player: bool = false
+var _saw_hide: bool = false  # watched the player crawl under the bed they're hiding under
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
 @onready var agent: NavigationAgent3D = $NavigationAgent3D
@@ -92,7 +98,7 @@ var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
 func _ready() -> void:
 	collision_layer = Prop.LAYER_MONSTER
-	collision_mask = Prop.LAYER_WORLD | Prop.LAYER_PLAYER | Prop.LAYER_PROPS
+	collision_mask = Prop.LAYER_WORLD | Prop.LAYER_PLAYER | Prop.LAYER_PROPS | Prop.LAYER_DOORS
 	NoiseBus.noise_emitted.connect(_on_noise)
 	model.footstep.connect(_on_footstep)
 
@@ -101,6 +107,7 @@ func _ready() -> void:
 func activate(target_player: Player, points: Array[Vector3]) -> void:
 	player = target_player
 	patrol_points = points
+	player.hiding_changed.connect(_on_player_hiding)
 	# Wait until the freshly baked house is synced into the navigation map.
 	var map := agent.get_navigation_map()
 	for i in 120:
@@ -162,7 +169,7 @@ func _enter_hunt() -> void:
 	voice.stream = Sfx.ROAR
 	voice.play()
 	Sfx.play_2d(Sfx.ROAR, -12.0)  # heard across the whole house
-	_go_to(player.global_position, HUNT_SPEED)
+	_go_to(_player_spot(), HUNT_SPEED)
 
 
 func _enter_chase() -> void:
@@ -175,8 +182,8 @@ func _enter_chase() -> void:
 	_alert_timer = ALERT_TIME
 	_investigating = false
 	_sweep_queue.clear()
-	_last_seen = player.global_position
-	voice.stream = Sfx.GROWL
+	_last_seen = _player_spot()
+	voice.stream = Sfx.ROAR  # the same scream as the hunt start: it has seen you
 	voice.play()
 	_has_target = false
 
@@ -204,11 +211,13 @@ func _eye() -> Vector3:
 
 
 func _line_clear(from: Vector3, to: Vector3) -> bool:
-	var q := PhysicsRayQueryParameters3D.create(from, to, Prop.LAYER_WORLD, [get_rid(), player.get_rid()])
+	var q := PhysicsRayQueryParameters3D.create(from, to, SIGHT_MASK, [get_rid(), player.get_rid()])
 	return get_world_3d().direct_space_state.intersect_ray(q).is_empty()
 
 
 func _can_see_player() -> bool:
+	if player.is_hidden():
+		return _saw_hide
 	var eye := _eye()
 	var head := player.eye_position()
 	var chest := player.global_position + Vector3(0, 0.5, 0)
@@ -225,6 +234,16 @@ func _can_see_player() -> bool:
 	if forward.dot(to_player / dist) < cos(deg_to_rad(FOV_DEG * 0.5)):
 		return false
 	return _line_clear(eye, head) or _line_clear(eye, chest)
+
+
+## Where to head for the player: someone under a bed is reached from its open side.
+func _player_spot() -> Vector3:
+	return player.hidden_in.exit_position() if player.is_hidden() else player.global_position
+
+
+## The player crawled under a bed (or out). It only knows where they are if it was watching.
+func _on_player_hiding(hidden: bool) -> void:
+	_saw_hide = hidden and active and _sees_player
 
 
 func _on_noise(pos: Vector3, radius: float, source: Node) -> void:
@@ -279,7 +298,7 @@ func _update_patience(delta: float) -> void:
 
 func _update_chase(delta: float) -> void:
 	if _sees_player:
-		_last_seen = player.global_position
+		_last_seen = _player_spot()
 	if _alert_timer > 0.0:
 		# Spotted: stare at the player for a moment, then run.
 		_alert_timer -= delta
@@ -290,7 +309,7 @@ func _update_chase(delta: float) -> void:
 	_chase_time += delta
 	if _sees_player:
 		_unseen_time = 0.0
-		_last_seen = player.global_position
+		_last_seen = _player_spot()
 		_repath_timer -= delta
 		if _repath_timer <= 0.0:
 			_repath_timer = 0.2
@@ -302,7 +321,7 @@ func _update_chase(delta: float) -> void:
 		_track_timer -= delta
 		if _track_timer <= 0.0:
 			_track_timer = CHASE_TRACK_INTERVAL
-			_last_seen = player.global_position
+			_last_seen = _player_spot()
 			_go_to(_last_seen, CHASE_SPEED)
 	elif _reached() or _unseen_time > LOSE_SIGHT_GIVE_UP:
 		_begin_sweep(_last_seen)
@@ -405,7 +424,7 @@ func _sees_point(from: Vector3, target: Vector3, source: Node = null) -> bool:
 	var exclude: Array[RID] = [get_rid()]
 	if source is CollisionObject3D:
 		exclude.append((source as CollisionObject3D).get_rid())
-	var q := PhysicsRayQueryParameters3D.create(from + Vector3(0, 1.0, 0), target + Vector3(0, 0.15, 0), Prop.LAYER_WORLD, exclude)
+	var q := PhysicsRayQueryParameters3D.create(from + Vector3(0, 1.0, 0), target + Vector3(0, 0.15, 0), SIGHT_MASK, exclude)
 	return get_world_3d().direct_space_state.intersect_ray(q).is_empty()
 
 
@@ -440,9 +459,22 @@ func _move(delta: float) -> void:
 	velocity.x = desired.x
 	velocity.z = desired.z
 	velocity.y = 0.0 if is_on_floor() else velocity.y - _gravity * delta
+	if desired.length() > 0.1:
+		_open_doors_ahead(desired)
 	move_and_slide()
 	_push_props()
 	_update_stuck(delta, desired)
+
+
+## Room doors aren't in the navmesh, so paths go straight through them: open a closed one before
+## walking into it (it swings away from the monster).
+func _open_doors_ahead(desired: Vector3) -> void:
+	var from := global_position + Vector3(0, 1.2, 0)
+	var reach := DOOR_REACH + desired.length() * 0.35
+	var q := PhysicsRayQueryParameters3D.create(from, from + desired.normalized() * reach, Prop.LAYER_DOORS, [get_rid()])
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	if hit and hit.collider is HingedDoor and not (hit.collider as HingedDoor).is_open:
+		(hit.collider as HingedDoor).open_from(global_position)
 
 
 ## Looking around a room: the head sweeps to random angles and the body slowly turns after it.
@@ -500,7 +532,14 @@ func _on_footstep(pos: Vector3, speed: float) -> void:
 
 func _check_catch() -> void:
 	var d := global_position - player.global_position
-	if Vector2(d.x, d.z).length() < CATCH_DISTANCE and absf(d.y) < 1.2 and _line_clear(_eye(), player.global_position + Vector3(0, 0.4, 0)):
+	var flat := Vector2(d.x, d.z).length()
+	var caught := false
+	if player.is_hidden():
+		var to_bed := global_position - _player_spot()
+		caught = _saw_hide and Vector2(to_bed.x, to_bed.z).length() < HIDDEN_CATCH_DISTANCE
+	else:
+		caught = flat < CATCH_DISTANCE and absf(d.y) < 1.2 and _line_clear(_eye(), player.global_position + Vector3(0, 0.4, 0))
+	if caught:
 		active = false
 		velocity = Vector3.ZERO
 		model.move_speed = 0.0

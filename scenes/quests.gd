@@ -1,6 +1,7 @@
 class_name Quests
 extends Node
 ## Morning chores (breakfast, toys) and night goals (key, exit). Pushes objective text to the HUD.
+## Every finished objective plays a short "done" sound. Toys that stay unfound for a while glow.
 
 signal objectives_changed(header: String, lines: PackedStringArray)
 signal message(text: String)
@@ -13,6 +14,8 @@ const BREAKFAST_STEPS := [
 	"Возьми молоко",
 	"Положи молоко в тарелку",
 ]
+## Seconds without tidying progress before the remaining toys light up.
+const TOY_HINT_DELAY := 45.0
 
 var house: House
 var player: Player
@@ -27,6 +30,8 @@ var breakfast_done: bool = false
 var toys_done: bool = false
 var toys_total: int = 0
 var toys_in_box: int = 0
+var toy_hint_on: bool = false
+var _toy_idle: float = 0.0
 
 
 func setup(h: House, p: Player) -> void:
@@ -34,7 +39,10 @@ func setup(h: House, p: Player) -> void:
 	player = p
 	toys_total = house.toys.size()
 	player.grabbed.connect(_on_grabbed)
-	player.item_added.connect(func(_i: Pickup.Item) -> void: refresh())
+	player.item_added.connect(func(item: Pickup.Item) -> void:
+		if item == Pickup.Item.KEY and night:
+			_goal_done()
+		refresh())
 	house.fridge_door.opened.connect(func() -> void:
 		fridge_opened = true
 		refresh())
@@ -48,12 +56,22 @@ func is_morning_done() -> bool:
 
 func start_morning() -> void:
 	night = false
+	_toy_idle = 0.0
 	refresh()
 
 
 func start_night() -> void:
 	night = true
+	_set_toy_hint(false)
 	refresh()
+
+
+func _process(delta: float) -> void:
+	if night or toys_done:
+		return
+	_toy_idle += delta
+	if _toy_idle >= TOY_HINT_DELAY and not toy_hint_on:
+		_set_toy_hint(true)
 
 
 ## Puts the house into the "chores done" state (used when a run starts directly at night).
@@ -138,17 +156,42 @@ func _on_bowl_changed() -> void:
 		house.fill_bowl()
 		breakfast_done = true
 		message.emit("Завтрак готов!")
+		_goal_done()
 		_check_morning()
 	refresh()
 
 
 func _on_toys_changed() -> void:
+	var before := toys_in_box
 	toys_in_box = house.toy_zone.count_in_group(&"toy")
-	if not toys_done and toys_in_box >= toys_total:
+	if toys_done:
+		return
+	if toys_in_box > before:
+		# Progress: the hint goes off and the countdown starts over.
+		_toy_idle = 0.0
+		_set_toy_hint(false)
+	elif toy_hint_on:
+		_set_toy_hint(true)  # a toy fell out of the box: light it up too
+	if toys_in_box >= toys_total:
 		toys_done = true
+		_set_toy_hint(false)
 		message.emit("Комната убрана!")
+		_goal_done()
 		_check_morning()
 	refresh()
+
+
+## Lights up (or turns off) the toys that aren't in the box yet.
+func _set_toy_hint(on: bool) -> void:
+	toy_hint_on = on
+	var boxed := house.toy_zone.get_in_group(&"toy")
+	for toy in house.toys:
+		if is_instance_valid(toy):
+			toy.set_highlight(on and not (toy in boxed))
+
+
+func _goal_done() -> void:
+	Sfx.play_2d(Sfx.GOAL, -4.0)
 
 
 func _check_morning() -> void:

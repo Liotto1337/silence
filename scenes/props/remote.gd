@@ -16,6 +16,8 @@ static func create(target_tv: Tv) -> TvRemote:
 	for i in 3:
 		r.add_box(Vector3(0.04, 0.005, 0.012), Color("555555"), Vector3(0, 0.027, -0.02 + i * 0.03), false)
 	r.add_step_trigger(0.12, func(_p: Player) -> void: r.press())
+	r.impact_sounds = Sfx.PLASTIC
+	r.place_sounds = Sfx.PLASTIC
 	return r
 
 

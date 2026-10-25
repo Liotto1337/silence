@@ -1,12 +1,13 @@
 class_name Player
 extends CharacterBody3D
 ## First-person player: movement with stamina, crouch, Source-style carrying, interaction,
-## flashlight with batteries and a two-slot inventory (flashlight + key).
+## flashlight with batteries, a two-slot inventory (flashlight + key) and hiding under beds.
 
 signal grabbed(prop: Prop)
 signal item_added(item: Pickup.Item)
 signal focus_changed(prompt: String)
 signal message(text: String)
+signal hiding_changed(hidden: bool)
 
 const WALK_SPEED := 2.6
 const SPRINT_SPEED := 5.0
@@ -41,7 +42,11 @@ const THROW_SPEED := 7.0
 
 const BATTERY_SECONDS := 60.0
 const FLASHLIGHT_START_CHARGE := 20.0  ## the flashlight is found with a half-dead battery
-const RAY_MASK := Prop.LAYER_WORLD | Prop.LAYER_PROPS | Prop.LAYER_PICKUPS
+const RAY_MASK := Prop.LAYER_WORLD | Prop.LAYER_PROPS | Prop.LAYER_PICKUPS | Prop.LAYER_DOORS
+## Lying under a bed: eye height and how far you can turn your head.
+const HIDE_EYE_HEIGHT := 0.17
+const HIDE_YAW_RANGE := 1.0
+const HIDE_PITCH := Vector2(-0.25, 0.3)
 
 var stamina: float = STAMINA_MAX
 var exhausted: bool = false
@@ -54,6 +59,7 @@ var battery: float = 0.0
 var controls_enabled: bool = true
 var night: bool = false
 var held: Prop
+var hidden_in: Bed  ## the bed the player is hiding under, or null
 
 var _yaw: float = 0.0
 var _pitch: float = 0.0
@@ -67,6 +73,7 @@ var _focus_target: Object
 var _focus_prompt: String = ""
 var _bob_amp: float = 0.0
 var _stand_shape := CapsuleShape3D.new()
+var _breath_loop: AudioStreamWAV
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
 @onready var collision: CollisionShape3D = $CollisionShape3D
@@ -80,11 +87,12 @@ var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
 func _ready() -> void:
 	collision_layer = Prop.LAYER_PLAYER
-	collision_mask = Prop.LAYER_WORLD | Prop.LAYER_MONSTER | Prop.LAYER_PROPS
+	collision_mask = Prop.LAYER_WORLD | Prop.LAYER_MONSTER | Prop.LAYER_PROPS | Prop.LAYER_DOORS
 	collision.shape = collision.shape.duplicate()
 	_stand_shape.radius = RADIUS - 0.03
 	_stand_shape.height = STAND_HEIGHT - 0.06
-	breath_player.stream = Sfx.looped(Sfx.BREATH)
+	_breath_loop = Sfx.looped(Sfx.BREATH)
+	breath_player.stream = _breath_loop
 	_yaw = rotation.y
 	flashlight.visible = false
 	set_night(false)
@@ -110,6 +118,10 @@ func is_lit() -> bool:
 	return flashlight_on or not night
 
 
+func is_hidden() -> bool:
+	return hidden_in != null
+
+
 func eye_position() -> Vector3:
 	return camera.global_position
 
@@ -121,8 +133,17 @@ func _unhandled_input(event: InputEvent) -> void:
 		var sens := Settings.mouse_sensitivity * 0.01
 		_yaw -= event.relative.x * sens
 		_pitch = clampf(_pitch - event.relative.y * sens, deg_to_rad(-88), deg_to_rad(88))
+		if hidden_in:
+			var center := hidden_in.hide_yaw()
+			_yaw = center + clampf(angle_difference(center, _yaw), -HIDE_YAW_RANGE, HIDE_YAW_RANGE)
+			_pitch = clampf(_pitch, HIDE_PITCH.x, HIDE_PITCH.y)
 		rotation.y = _yaw
 		head.rotation.x = _pitch
+	elif hidden_in:
+		if event.is_action_pressed(&"interact") or event.is_action_pressed(&"jump"):
+			leave_hiding()
+		elif event.is_action_pressed(&"flashlight"):
+			toggle_flashlight()
 	elif event.is_action_pressed(&"interact"):
 		_try_interact()
 	elif event.is_action_pressed(&"grab"):
@@ -136,6 +157,12 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if hidden_in:
+		sprinting = false
+		_update_stamina(delta)
+		_update_flashlight(delta)
+		_update_focus()
+		return
 	_update_crouch(delta)
 	_update_movement(delta)
 	_update_held(delta)
@@ -205,6 +232,9 @@ func _update_stamina(delta: float) -> void:
 	if exhausted and stamina >= EXHAUST_RECOVER:
 		exhausted = false
 		breath_player.stop()
+		# Catching your breath: one last shivering breath.
+		breath_player.stream = Sfx.BREATH_RECOVER
+		breath_player.play()
 
 
 func _spend_stamina(amount: float) -> void:
@@ -212,6 +242,7 @@ func _spend_stamina(amount: float) -> void:
 	_regen_timer = REGEN_DELAY
 	if stamina <= 0.0 and not exhausted:
 		exhausted = true
+		breath_player.stream = _breath_loop
 		breath_player.play()
 
 
@@ -324,7 +355,9 @@ func _update_focus() -> void:
 	var prompt := ""
 	var target: Object = null
 	if controls_enabled:
-		if held:
+		if hidden_in:
+			prompt = "[%s] Вылезти из-под кровати" % Settings.action_text(&"interact")
+		elif held:
 			prompt = "Отпусти [%s] — положить     [%s] — бросить" % [Settings.action_text(&"grab"), Settings.action_text(&"throw")]
 		else:
 			var hit := _ray()
@@ -399,6 +432,7 @@ func throw_held() -> void:
 	var prop := held
 	drop()
 	prop.linear_velocity = -camera.global_basis.z * THROW_SPEED + velocity * 0.5
+	prop.on_thrown()
 
 
 func _on_held_freed(prop: Prop) -> void:
@@ -494,6 +528,42 @@ func _update_flashlight(delta: float) -> void:
 		flashlight.light_energy = randf_range(0.2, 1.0)
 	else:
 		flashlight.light_energy = lerpf(flashlight.light_energy, 2.2, 0.3)
+
+
+# --- hiding under a bed -----------------------------------------------------
+
+## Crawls under the bed: the player lies there looking out of the open side and can't move.
+## The monster doesn't see a hidden player, unless it watched them crawl in.
+func hide_under(bed: Bed) -> void:
+	if hidden_in:
+		return
+	drop()
+	hidden_in = bed
+	velocity = Vector3.ZERO
+	sprinting = false
+	collision.disabled = true
+	global_position = bed.hide_position()
+	_yaw = bed.hide_yaw()
+	_pitch = 0.0
+	rotation = Vector3(0, _yaw, 0)
+	head.rotation.x = 0.0
+	head.position.y = HIDE_EYE_HEIGHT
+	_bob_amp = 0.0
+	hiding_changed.emit(true)
+
+
+func leave_hiding() -> void:
+	if not hidden_in:
+		return
+	var bed := hidden_in
+	hidden_in = null
+	global_position = bed.exit_position()
+	velocity = Vector3.ZERO
+	crouching = true  # you come out on all fours; stands up once crouch is released
+	_apply_height(CROUCH_HEIGHT)
+	head.position.y = CROUCH_HEIGHT - EYE_FROM_TOP
+	collision.disabled = false
+	hiding_changed.emit(false)
 
 
 func set_controls_enabled(value: bool) -> void:

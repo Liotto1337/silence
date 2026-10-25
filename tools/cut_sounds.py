@@ -122,6 +122,45 @@ def main() -> None:
     save("amb_crow.ogg", normalize(clip(x, 0, 2.15, fade_out=0.15), -3.0))
     save("amb_crow_once.ogg", normalize(clip(x, 0, 0.72, fade_out=0.15), -3.0))
 
+    # Objective done: only the first of the three frog croaks.
+    x = load("3-positive-and-optimistic-frog-sounds-to-get-the-sound-of-game-props.mp3")
+    save("goal.wav", normalize(clip(x, refine_onset(x, 0.96), 0.85, fade_out=0.3), -3.0))
+
+    # Prop impacts: one event per file, so the clip can play on every contact.
+    x = load("the-sound-of-a-bouncing-plastic-ball-and-ball.mp3")
+    for i, t in enumerate([0.63, 1.24, 1.74]):
+        save("ball_bounce_%d.wav" % (i + 1), normalize(clip(x, refine_onset(x, t), 0.45, fade_out=0.15), -1.0))
+    for i, name in enumerate(["пластик.mp3", "пластик2.mp3"]):
+        x = load(name)
+        save("plastic_%d.wav" % (i + 1), normalize(clip(x, refine_onset(x, 0.0), 0.7, fade_out=0.15), -1.0))
+    x = load("clockwork-toy-sound-ratchet.mp3")
+    save("car_ratchet.wav", normalize(clip(x, 0, 2.3, fade_out=0.2), -1.0))
+    x = load("wood-block-movement-on-wood-floor_04.mp3")
+    save("wood_block.wav", normalize(clip(x, refine_onset(x, 0.05), 0.6, fade_out=0.15), -1.0))
+    x = load("не разбилась.mp3")
+    save("vase_hit.wav", normalize(clip(x, refine_onset(x, 0.0), 1.5, fade_out=0.5), -1.0))
+    x = load("разбилась.mp3")
+    save("vase_break.wav", normalize(clip(x, refine_onset(x, 0.0), 0.6, fade_out=0.2), -1.0))
+
+    # Furniture: the recordings hold the opening and the closing, split into two clips.
+    x = load("desk-drawer-wooden-opened-closed.mp3")
+    save("drawer_open.wav", normalize(clip(x, refine_onset(x, 0.8), 0.9, fade_out=0.2), -2.0))
+    save("drawer_close.wav", normalize(clip(x, refine_onset(x, 3.65), 1.15, fade_out=0.3), -2.0))
+    x = load("cabinet-door-small-cabinet-door-opens-and-closes.mp3")
+    save("cabinet_open.wav", normalize(clip(x, refine_onset(x, 0.35), 0.75, fade_out=0.2), -2.0))
+    save("cabinet_close.wav", normalize(clip(x, refine_onset(x, 3.6), 0.85, fade_out=0.25), -2.0))
+    x = load("sounds-of-wooden-doors-assembly.mp3")
+    save("door_open.wav", normalize(clip(x, refine_onset(x, 0.09), 0.8, fade_out=0.2), -2.0))
+    save("door_close.wav", normalize(clip(x, refine_onset(x, 3.23), 0.65, fade_out=0.2), -2.0))
+    # Locked door: a 1.35 s stretch of handle rattling out of the 8 s take.
+    x = load("закрытая дверь.mp3")
+    save("door_locked.wav", normalize(clip(x, int(1.0 * SR), 1.35, fade_in=0.03, fade_out=0.25), -2.0))
+
+    # Out of breath: two breaths loop while exhausted, the shivering breath plays once on recovery.
+    x = load("female-breathes-with-a-light-shiver-at-the-end.mp3")
+    save("breath.wav", normalize(clip(x, 0, 3.55, fade_in=0.05, fade_out=0.3), -3.0))
+    save("breath_recover.wav", normalize(clip(x, int(3.55 * SR), 2.35, fade_in=0.05, fade_out=0.4), -3.0))
+
 
 if __name__ == "__main__":
     main()

@@ -2,7 +2,6 @@ extends Node
 ## Fire-and-forget sound playback plus the shared sound library.
 
 const ROAR := preload("res://assets/sounds/monster_roar.ogg")
-const GROWL := preload("res://assets/sounds/monster_growl.wav")
 const MONSTER_STEPS: Array[AudioStream] = [
 	preload("res://assets/sounds/monster_step_1.wav"),
 	preload("res://assets/sounds/monster_step_2.wav"),
@@ -41,6 +40,32 @@ const AMBIENT: Array[AudioStream] = [
 const THUD := preload("res://assets/sounds/impact_thud.wav")
 const FAN_HUM := preload("res://assets/sounds/fan_hum.wav")
 const BREATH := preload("res://assets/sounds/breath.wav")
+const BREATH_RECOVER := preload("res://assets/sounds/breath_recover.wav")
+const GOAL := preload("res://assets/sounds/goal.wav")
+
+# Props.
+const BALL_BOUNCE: Array[AudioStream] = [
+	preload("res://assets/sounds/ball_bounce_1.wav"),
+	preload("res://assets/sounds/ball_bounce_2.wav"),
+	preload("res://assets/sounds/ball_bounce_3.wav"),
+]
+const PLASTIC: Array[AudioStream] = [
+	preload("res://assets/sounds/plastic_1.wav"),
+	preload("res://assets/sounds/plastic_2.wav"),
+]
+const WOOD_BLOCK: Array[AudioStream] = [preload("res://assets/sounds/wood_block.wav")]
+const CAR_RATCHET := preload("res://assets/sounds/car_ratchet.wav")
+const VASE_HIT: Array[AudioStream] = [preload("res://assets/sounds/vase_hit.wav")]
+const VASE_BREAK := preload("res://assets/sounds/vase_break.wav")
+
+# Furniture and doors.
+const DRAWER_OPEN := preload("res://assets/sounds/drawer_open.wav")
+const DRAWER_CLOSE := preload("res://assets/sounds/drawer_close.wav")
+const CABINET_OPEN := preload("res://assets/sounds/cabinet_open.wav")
+const CABINET_CLOSE := preload("res://assets/sounds/cabinet_close.wav")
+const DOOR_OPEN := preload("res://assets/sounds/door_open.wav")
+const DOOR_CLOSE := preload("res://assets/sounds/door_close.wav")
+const DOOR_LOCKED := preload("res://assets/sounds/door_locked.wav")
 
 
 func play_3d(stream: AudioStream, position: Vector3, volume_db: float = 0.0, max_distance: float = 30.0, pitch: float = 1.0) -> void:

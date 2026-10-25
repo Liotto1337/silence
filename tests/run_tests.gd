@@ -127,6 +127,59 @@ func _run() -> void:
 	await _seconds(0.2)
 	_check(noises.has(NoiseBus.TV), "TV emits noise")
 	house.tv.set_on(false)
+
+	print("--- doors")
+	_check(house.room_doors.size() == 4, "4 unlocked room doors (2 closets, bathroom, WC)")
+	var all_closed := true
+	for d in house.room_doors:
+		all_closed = all_closed and not d.is_open and d.collision_layer == Prop.LAYER_DOORS
+	_check(all_closed, "room doors start closed, on the door layer (not baked into the navmesh)")
+	var bath_door: HingedDoor = house.room_doors[2]
+	player.teleport(Vector3(5.7, 0.05, 10.5), 0.0)  # corridor, north of the bathroom door
+	player.force_update_transform()
+	bath_door.interact(player)
+	await _frames(30)
+	_check(bath_door.is_open and bath_door.to_global(bath_door._panel_center).z > 11.8, "door opens away from the player (into the bathroom)")
+	bath_door.interact(player)
+	await _frames(30)
+	player.teleport(Vector3(5.7, 0.05, 12.6), 0.0)  # inside the bathroom
+	player.force_update_transform()
+	bath_door.interact(player)
+	await _frames(30)
+	_check(bath_door.to_global(bath_door._panel_center).z < 11.0, "from the other side it swings into the corridor")
+	bath_door.set_open(false)
+	house.front_door.interact(player)
+	_check(not house.front_door.is_open and house.front_door._locked_audio != null and house.front_door._locked_audio.playing, "locked front door rattles")
+	await _frames(30)
+
+	print("--- breakable vase, clockwork car")
+	var vase: Vase
+	for c in house.get_node("Props").get_children():
+		if c is Vase:
+			vase = c
+			break
+	noises.clear()
+	vase.global_position = Vector3(10.0, 0.06, 5.0)
+	vase.linear_velocity = Vector3.ZERO
+	await _seconds(0.8)
+	_check(is_instance_valid(vase) and noises.is_empty(), "a vase set down gently doesn't break or make noise")
+	vase.global_position = Vector3(10.0, 0.6, 5.0)
+	vase.linear_velocity = Vector3(0, -6.0, 0)
+	await _seconds(0.5)
+	_check(not is_instance_valid(vase) and noises.has(maxf(Prop.impact_noise_radius(6.0), NoiseBus.IMPACT_MAX)), "a hard hit shatters the vase: loud noise")
+	var car: Toy = house.toys[6]
+	_check(car.kind == Toy.Kind.CAR, "")
+	noises.clear()
+	car.global_position = Vector3(3.5, 0.6, 3.5)
+	car.linear_velocity = Vector3(0, -2.0, 0)
+	car.on_thrown()
+	var rattled := false
+	for i in 30:
+		await _frames(2)
+		rattled = rattled or car.is_rattling()
+	_check(rattled and noises.has(Toy.RATTLE_NOISE), "a thrown car rattles on the floor and makes noise (%.0f m)" % Toy.RATTLE_NOISE)
+	await _seconds(2.4)
+	_check(not car.is_rattling(), "the rattle stops after the clockwork runs down")
 	NoiseBus.noise_emitted.disconnect(rec)
 	player.teleport(house.player_spawn_morning.origin, 0.0)
 	await _frames(10)
@@ -136,6 +189,8 @@ func _run() -> void:
 	house.fridge_door.interact(player)
 	await _frames(30)
 	_check(house.fridge_door.is_open and quests.fridge_opened, "fridge opens via interact")
+	var fridge_tip := house.fridge_door.to_global(Vector3(-0.8, 1.0, 0.0))
+	_check(fridge_tip.x > 0.15 and fridge_tip.z > 10.6, "open fridge door swings into the kitchen, not through the wall (%s)" % fridge_tip.snapped(Vector3.ONE * 0.01))
 	var bowl_top := house.bowl_zone.global_position
 	house.cereal.global_position = bowl_top + Vector3(-0.1, 0.0, 0)
 	await _frames(20)
@@ -147,6 +202,13 @@ func _run() -> void:
 
 	print("--- morning: toys")
 	_check(quests.toys_in_box == 0, "toy box empty before quest")
+	_check(not quests.toy_hint_on, "no toy hint at first")
+	quests._toy_idle = Quests.TOY_HINT_DELAY
+	await _frames(2)
+	var lit := 0
+	for t in house.toys:
+		lit += 1 if t.highlighted else 0
+	_check(quests.toy_hint_on and lit == house.toys.size(), "toys light up after %.0f s without progress (%d lit)" % [Quests.TOY_HINT_DELAY, lit])
 	var box := house.toy_zone.global_position
 	for i in house.toys.size():
 		house.toys[i].global_position = box + Vector3((i % 3 - 1) * 0.15, 0.1 + (i / 3) * 0.22, 0)
@@ -154,6 +216,10 @@ func _run() -> void:
 		await _frames(4)
 	await _frames(30)
 	_check(quests.toys_done, "all toys in box (%d/%d)" % [quests.toys_in_box, quests.toys_total])
+	var still_lit := false
+	for t in house.toys:
+		still_lit = still_lit or t.highlighted
+	_check(not quests.toy_hint_on and not still_lit, "the hint goes off once toys go into the box")
 	_check(quests.is_morning_done(), "morning complete")
 
 	print("--- inventory / flashlight")
@@ -237,10 +303,19 @@ func _run() -> void:
 	monster.global_position = Vector3(14.5, 0.05, 2.0)
 	await _frames(1)
 	monster._go_to(Vector3(10.0, 0, 8.3), Monster.PATROL_SPEED)  # parents' room -> hall
-	await _seconds(3.0)
+	var lowest_sole := INF
+	var highest_stance := -INF
+	for i in 180:
+		await _frames(1)
+		var soles: Array[float] = []
+		for f in monster.model._foot:
+			soles.append(f.global_position.y - MonsterModel.ANKLE - monster.global_position.y)
+		lowest_sole = minf(lowest_sole, soles.min())
+		highest_stance = maxf(highest_stance, soles.min())
 	var walk_steps := steps.size()
 	var expected := 3.0 * Monster.PATROL_SPEED / (0.8 + 0.18 * Monster.PATROL_SPEED)
 	_check(walk_steps >= int(expected) - 1 and walk_steps <= int(expected) + 2, "footsteps follow the walk cycle (%d steps in 3 s, ~%.1f expected)" % [walk_steps, expected])
+	_check(lowest_sole > -0.015 and highest_stance < 0.03, "feet don't sink into the floor while walking (lowest sole %.3f m, stance foot up to %.3f m)" % [lowest_sole, highest_stance])
 	monster.model.footstep.disconnect(on_step)
 	monster.active = false
 	monster.global_position = Vector3(10.0, 0.05, 6.0)  # middle of the hall
@@ -252,6 +327,33 @@ func _run() -> void:
 	var head_cone := monster._can_see_player()
 	monster._head_yaw = 0.0
 	_check(head_cone and not monster._can_see_player(), "vision cone follows the head")
+	monster.global_position = Vector3(10.0, 0.05, 2.0)
+	monster.rotation.y = PI  # facing south down the hall
+	monster.force_update_transform()
+	player.teleport(Vector3(10.0, 0.05, 9.0), 0.0)
+	player.force_update_transform()
+	var seen_far_dark := monster._can_see_player()
+	player.flashlight_on = true
+	var seen_far_lit := monster._can_see_player()
+	player.teleport(Vector3(10.0, 0.05, 13.6), 0.0)
+	player.force_update_transform()
+	var seen_very_far_lit := monster._can_see_player()
+	player.flashlight_on = false
+	player.teleport(Vector3(10.0, 0.05, 5.5), 0.0)
+	player.force_update_transform()
+	_check(not seen_far_dark and seen_far_lit and not seen_very_far_lit and monster._can_see_player(),
+			"sight range: %.0f m in the dark, %.0f m with the flashlight on" % [Monster.SIGHT_RANGE_DARK, Monster.SIGHT_RANGE_LIT])
+	var wc_door: HingedDoor = house.room_doors[3]
+	monster.global_position = Vector3(7.8, 0.05, 10.3)
+	monster.force_update_transform()
+	player.teleport(Vector3(7.8, 0.05, 12.8), 0.0)  # in the WC, door closed
+	player.force_update_transform()
+	var through_closed := monster._can_see_player()
+	wc_door.set_open(true)
+	await _frames(30)
+	_check(not through_closed and monster._can_see_player(), "a closed door blocks sight, an open one doesn't")
+	wc_door.set_open(false)
+	await _frames(30)
 	player.teleport(far_spot, 0.0)
 	monster.active = true
 	monster._begin_sweep(monster.global_position)
@@ -269,6 +371,17 @@ func _run() -> void:
 		if not house.tv.is_on:
 			break
 	_check(not house.tv.is_on, "monster switched the TV off")
+
+	print("--- monster: opens a closed door on its way")
+	monster._begin_sweep(monster.global_position)
+	monster._sweep_queue.clear()
+	monster._wait_timer = 0.0
+	monster.global_position = Vector3(7.8, 0.05, 10.4)  # corridor, in front of the closed WC door
+	_check(not wc_door.is_open, "")
+	monster._go_to(Vector3(7.8, 0, 12.8), Monster.PATROL_SPEED)
+	await _seconds(4.0)
+	_check(wc_door.is_open and monster.global_position.z > 11.8, "monster opens the WC door and walks in (z %.1f)" % monster.global_position.z)
+	wc_door.set_open(false)
 
 	print("--- monster: sight -> freeze facing the player -> chase -> catch")
 	monster._begin_sweep(monster.global_position)
@@ -320,6 +433,53 @@ func _run() -> void:
 	_check(escaped and not caught_in_vent[0], "monster can't follow into the vent and gives up (state %s)" % Monster.State.keys()[monster.state])
 	_check(monster.global_position.z > 0.05, "monster stayed inside the house")
 	player.set_physics_process(true)
+	player.crouching = false
+
+	print("--- hiding under the bed")
+	var bed := house.hero_bed
+	player._apply_height(Player.STAND_HEIGHT)
+	player.teleport(bed.exit_position(), 0.0)
+	_check(not bed.get_prompt(player).contains("кровать"), "")
+	player.crouching = true
+	_check(bed.get_prompt(player) == "Залезть под кровать", "crouched: the bed offers hiding under it")
+	monster._begin_sweep(monster.global_position)
+	monster._sweep_queue.clear()
+	monster._wait_timer = 0.0
+	monster.global_position = Vector3(4.5, 0.05, 1.5)
+	monster.rotation.y = -PI * 0.5  # facing east, away from the bed
+	await _frames(2)
+	player.crouching = true
+	bed.interact(player)
+	_check(player.is_hidden() and player.global_position.distance_to(bed.hide_position()) < 0.05, "interact while crouched: hides under the bed")
+	var caught_hidden := [false]
+	monster.caught_player.connect(func() -> void: caught_hidden[0] = true)
+	monster._go_to(bed.exit_position(), Monster.PATROL_SPEED)
+	await _seconds(4.0)
+	var d_bed := monster.global_position - bed.exit_position()
+	_check(not caught_hidden[0] and monster.state != Monster.State.CHASE and Vector2(d_bed.x, d_bed.z).length() < Monster.HIDDEN_CATCH_DISTANCE,
+			"the monster walks right up to the bed and doesn't notice the hidden player")
+	monster._begin_sweep(monster.global_position)
+	monster._sweep_queue.clear()
+	monster._wait_timer = 10.0
+	monster.global_position = Vector3(4.0, 0.05, 1.5)
+	player.leave_hiding()
+	_check(not player.is_hidden() and player.crouching, "interact again: crawls out, crouched")
+	var to_bed := player.global_position - monster.global_position
+	monster.rotation.y = atan2(-to_bed.x, -to_bed.z)
+	await _frames(3)
+	_check(monster.state == Monster.State.CHASE, "monster spots the player by the bed")
+	player.hide_under(bed)
+	for i in 20:
+		await _seconds(0.25)
+		if caught_hidden[0]:
+			break
+	_check(caught_hidden[0], "hiding in front of the monster doesn't work: it pulls the player out")
+	await _seconds(1.0)  # let the catch fade finish and open the end screen
+	_game._busy = false
+	_game.pause_menu._ending = false
+	_game.pause_menu.resume()
+	player.leave_hiding()
+	player.set_controls_enabled(true)
 	player.crouching = false
 
 	print("--- player footsteps follow the step cycle")

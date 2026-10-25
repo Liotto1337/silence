@@ -22,13 +22,3 @@ static func milk() -> Prop:
 	p.add_visual(Lowpoly.cylinder(0.07, 0.06, 4, 0.0), Color("3b6fd9"), Vector3(0, 0.25, 0), Vector3(0, PI / 4, 0))
 	return p
 
-
-static func vase(color: Color) -> Prop:
-	var p := Prop.new()
-	p.display_name = "Ваза"
-	p.mass = 1.2
-	p.add_visual(Lowpoly.cylinder(0.07, 0.12, 6, 0.1), color, Vector3(0, 0.06, 0))
-	p.add_visual(Lowpoly.cylinder(0.1, 0.12, 6, 0.05), color, Vector3(0, 0.18, 0))
-	p.add_visual(Lowpoly.cylinder(0.05, 0.06, 6, 0.06), color.darkened(0.2), Vector3(0, 0.27, 0))
-	p.add_cylinder_shape(0.08, 0.3, Vector3(0, 0.15, 0))
-	return p

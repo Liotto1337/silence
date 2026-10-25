@@ -44,3 +44,4 @@ func interact(_player: Player) -> void:
 	_tween = create_tween().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
 	var target := _closed_pos + transform.basis.z * (SLIDE if is_open else 0.0)
 	_tween.tween_property(self, "position", target, 0.25).set_trans(Tween.TRANS_SINE)
+	Sfx.play_3d(Sfx.DRAWER_OPEN if is_open else Sfx.DRAWER_CLOSE, global_position, -4.0, 18.0, randf_range(0.95, 1.05))

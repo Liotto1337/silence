@@ -24,7 +24,8 @@ extends NavigationRegion3D
 ##
 ## On foot the flat is a tree (every room is a dead end off the hall/corridor), so the two vent
 ## ducts are the loops: hero room <-> parents' room and kitchen <-> bathroom. The monster can't
-## fit into a vent. The balcony door is jammed.
+## fit into a vent. The balcony door is jammed. The closets, bathroom and WC have unlocked two-way
+## doors; they are left out of the navmesh and the monster opens them on its way.
 
 const H := 2.8  ## wall height
 const T := 0.2  ## wall thickness
@@ -58,9 +59,10 @@ var bowl: StaticBody3D
 var bowl_zone: ItemZone
 var toy_zone: ItemZone
 var tv: Tv
-var hero_bed: Interactable
+var hero_bed: Bed
 var front_door: HingedDoor
 var balcony_door: HingedDoor
+var room_doors: Array[HingedDoor] = []
 var key_spots: Array[Node3D] = []
 var battery_spots: Array[Node3D] = []
 var flashlight_spot: Node3D
@@ -154,11 +156,21 @@ func _build_shell() -> void:
 	_wall_z(shell, 6.8, 11.4, Z_SOUTH, [])  # bath | WC
 	_wall_z(shell, 8.8, 11.4, Z_SOUTH, [])  # WC | vestibule
 
-	# Vent openings: frame on the room side and the removed grate leaning next to it.
+	# Unlocked doors: storage closets, bathroom, WC.
+	_room_door(shell, 8.75 - 0.55, 2.6, 1.1, false)
+	_room_door(shell, 10.75 + DOOR_W * 0.5, 1.6, DOOR_W, true)
+	_room_door(shell, 5.7 - DOOR_W * 0.5, 11.4, DOOR_W, false)
+	_room_door(shell, 7.8 + DOOR_W * 0.5, 11.4, DOOR_W, true)
+
+	# Vent openings: frame on the room side and the removed grate leaning next to it. In the
+	# bathroom the tub is in the way, so the grate leans against the west wall there.
 	for x in NORTH_VENTS:
 		_vent_frame(shell, x, 0.0, 1.0)
-	for x in SOUTH_VENTS:
-		_vent_frame(shell, x, Z_SOUTH, -1.0)
+		_vent_grate(shell, Vector3(x + VENT_W * 0.5 + 0.6, 0.0, T * 0.5 + 0.24), 0.0)
+	_vent_frame(shell, SOUTH_VENTS[0], Z_SOUTH, -1.0)
+	_vent_grate(shell, Vector3(SOUTH_VENTS[0] + VENT_W * 0.5 + 0.6, 0.0, Z_SOUTH - T * 0.5 - 0.24), PI)
+	_vent_frame(shell, SOUTH_VENTS[1], Z_SOUTH, -1.0)
+	_vent_grate(shell, Vector3(4.6 + T * 0.5 + 0.24, 0.0, 13.1), PI * 0.5)
 
 	# Front door (locked until the player has the key), opens outwards.
 	front_door = HingedDoor.new()
@@ -169,8 +181,29 @@ func _build_shell() -> void:
 	front_door.close_prompt = ""
 	front_door.locked_prompt = "Заперто. Нужен ключ"
 	front_door.can_open = func(p: Player) -> bool: return p.has_key
+	front_door.open_sound = Sfx.DOOR_OPEN
+	front_door.locked_sound = Sfx.DOOR_LOCKED
 	front_door.build_panel(Vector3(DOOR_W, DOOR_H, 0.08), Color("5b3a24"), false)
 	shell.add_child(front_door)
+
+
+## Unlocked two-way room door in a doorway of a wall along X at wall_z. The hinge is at hinge_x;
+## the panel runs east from it (west when mirrored). Room doors are left out of the navmesh: the
+## monster opens them on its way.
+func _room_door(parent: Node3D, hinge_x: float, wall_z: float, width: float, mirrored: bool) -> void:
+	var door := HingedDoor.new()
+	door.name = "RoomDoor%d" % room_doors.size()
+	door.position = Vector3(hinge_x + (-0.02 if mirrored else 0.02), 0.01, wall_z)
+	door.open_angle = deg_to_rad(92.0)
+	door.two_way = true
+	door.open_prompt = "Открыть дверь"
+	door.close_prompt = "Закрыть дверь"
+	door.open_sound = Sfx.DOOR_OPEN
+	door.close_sound = Sfx.DOOR_CLOSE
+	door.collision_layer = Prop.LAYER_DOORS
+	door.build_panel(Vector3(width - 0.04, DOOR_H - 0.03, 0.05), Color("cdbb9a"), mirrored)
+	parent.add_child(door)
+	room_doors.append(door)
 
 
 ## Vent opening in a wall along X at wall_z; `inward` is +1 / -1: which side of it is the room.
@@ -180,10 +213,15 @@ func _vent_frame(parent: Node3D, x: float, wall_z: float, inward: float) -> void
 	_mesh(parent, Lowpoly.box(Vector3(VENT_W + 0.12, 0.06, 0.04)), c, Vector3(x, VENT_H + 0.03, z))
 	_mesh(parent, Lowpoly.box(Vector3(0.06, VENT_H, 0.04)), c, Vector3(x - VENT_W * 0.5 - 0.03, VENT_H * 0.5, z))
 	_mesh(parent, Lowpoly.box(Vector3(0.06, VENT_H, 0.04)), c, Vector3(x + VENT_W * 0.5 + 0.03, VENT_H * 0.5, z))
-	# The removed grate leans against the wall next to the opening.
+
+
+## The removed vent grate leaning against a wall. `pos` is its foot on the floor; at yaw 0 it
+## faces +Z with the wall behind it (on -Z).
+func _vent_grate(parent: Node3D, pos: Vector3, yaw: float) -> void:
+	var c := Color("9aa0a6")
 	var grate := Node3D.new()
-	grate.position = Vector3(x + VENT_W * 0.5 + 0.6, 0.0, z + inward * 0.22)
-	grate.rotation = Vector3(-0.2 * inward, 0.0, 0.0)
+	grate.position = pos
+	grate.rotation = Vector3(-0.2, yaw, 0.0)
 	parent.add_child(grate)
 	var gw := VENT_W - 0.05
 	for sx: float in [-1.0, 1.0]:
@@ -203,9 +241,14 @@ func _build_duct(n: String, wall_z: float, side: float, span: Vector2, house_spa
 	var cx := (span.x + span.y) * 0.5
 	var z_in := wall_z + side * T * 0.5
 	var cz := z_in + side * DUCT_DEPTH * 0.5
-	# Floor and ceiling (they reach under / into the house wall, closing the gaps at the openings).
-	_box(duct, Vector3(length + 0.4, 0.1, DUCT_DEPTH + 0.4), Vector3(cx, -0.05, cz), c.darkened(0.3))
-	_box(duct, Vector3(length + 0.4, 0.1, DUCT_DEPTH + 0.4), Vector3(cx, VENT_H + 0.05, cz), c)
+	# Floor and ceiling. The floor reaches under the house wall to its centre line (where the room
+	# floor starts); the ceiling starts at the wall's outer face, so neither one shares a surface
+	# with the wall or the room floor (that z-fought as a stripe along the walls).
+	var outer := z_in + side * (DUCT_DEPTH + 0.2)
+	var floor_depth := absf(outer - wall_z)
+	var ceil_depth := absf(outer - z_in)
+	_box(duct, Vector3(length + 0.4, 0.1, floor_depth), Vector3(cx, -0.05, (outer + wall_z) * 0.5), c.darkened(0.3))
+	_box(duct, Vector3(length + 0.4, 0.1, ceil_depth), Vector3(cx, VENT_H + 0.05, (outer + z_in) * 0.5), c)
 	# Outer wall, and inner walls where the duct runs past the house corners.
 	_box(duct, Vector3(length + 0.4, VENT_H, 0.2), Vector3(cx, VENT_H * 0.5, z_in + side * (DUCT_DEPTH + 0.1)), c)
 	if span.x < house_span.x:
@@ -254,6 +297,7 @@ func _build_balcony() -> void:
 	balcony_door.rotation.y = -PI * 0.5
 	balcony_door.locked_prompt = "Балконную дверь заклинило"
 	balcony_door.can_open = func(_p: Player) -> bool: return false
+	balcony_door.locked_sound = Sfx.DOOR_LOCKED
 	balcony_door.build_panel(Vector3(DOOR_W, DOOR_H, 0.08), Color("d8d2c4"), false)
 	_mesh(balcony_door, Lowpoly.box(Vector3(0.7, 1.1, 0.09)), Color("1d2a3a"), Vector3(DOOR_W * 0.5, 1.6, 0))
 	b.add_child(balcony_door)
@@ -266,7 +310,7 @@ func _build_hero_room() -> void:
 	_room_light(room, Vector3(4.0, H, 2.4))
 	# Bed along the west wall, open side facing east. Sleeping here ends the morning.
 	var bed := _furniture(room, Vector3(0.6, 0, 2.2), PI * 0.5)
-	hero_bed = Interactable.new()
+	hero_bed = Bed.new()
 	var under_bed := _build_bed(bed, Vector3(2.0, 0, 1.0), Color("3f6b9e"), hero_bed)
 	key_spots.append(under_bed)
 	# Desk with lamp against the north wall.
@@ -305,7 +349,7 @@ func _build_living_room() -> void:
 	room.add_child(tv)
 	# Sofa-bed by the north wall, open side facing the TV.
 	var bed := _furniture(room, Vector3(4.8, 0, Z_ROOMS + 0.8), 0.0)
-	_build_bed(bed, Vector3(2.0, 0, 1.2), Color("7b3f3f"), null)
+	_build_bed(bed, Vector3(2.0, 0, 1.2), Color("7b3f3f"))
 	# Armchair by the west wall.
 	_box(room, Vector3(0.8, 0.45, 0.8), Vector3(1.0, 0.225, 6.4), Color("5e4a6b"))
 	_box(room, Vector3(0.15, 0.5, 0.8), Vector3(0.67, 0.7, 6.4), Color("5e4a6b"))
@@ -324,8 +368,8 @@ func _build_hall() -> void:
 	# Storage closets: shelves with junk.
 	var s1 := _furniture(room, Vector3(8.75, 0, 0.1 + 0.18), 0.0)
 	_build_shelf(s1, 1.1)
-	var s2 := _furniture(room, Vector3(10.75, 0, 0.1 + 0.18), 0.0)
-	_build_shelf(s2, 2.0)
+	var s2 := _furniture(room, Vector3(10.35, 0, 0.1 + 0.18), 0.0)  # clear of the door swinging in
+	_build_shelf(s2, 1.4)
 	_spot("BatteryCloset", battery_spots, s2.to_global(Vector3(-0.5, 0.79, 0.0)))
 
 
@@ -334,7 +378,7 @@ func _build_parents_room() -> void:
 	_room_light(room, Vector3(16.2, H, 2.4))
 	# Double bed against the east wall.
 	var bed := _furniture(room, Vector3(X_EAST - 0.1 - 0.8, 0, 2.4), -PI * 0.5)
-	_build_bed(bed, Vector3(2.0, 0, 1.6), Color("8a6a3f"), null)
+	_build_bed(bed, Vector3(2.0, 0, 1.6), Color("8a6a3f"))
 	var wardrobe := _furniture(room, Vector3(15.0, 0, Z_ROOMS - 0.1 - 0.3), PI)
 	_build_wardrobe(wardrobe)
 	_build_dresser(room, Vector3(13.3, 0, 0.1 + 0.225), 0.0, Color("c98f8f"))
@@ -442,11 +486,15 @@ func _build_fridge(root: Node3D) -> HingedDoor:
 	root.add_child(light)
 	var door := HingedDoor.new()
 	door.name = "FridgeDoor"
-	door.position = Vector3(-w * 0.5, 0.03, d * 0.5 + 0.03)
-	door.open_angle = deg_to_rad(-105)
+	# Hinged on the side away from the wall, so the open door swings into the kitchen.
+	door.position = Vector3(w * 0.5, 0.03, d * 0.5 + 0.03)
+	door.open_angle = deg_to_rad(105)
 	door.open_prompt = "Открыть холодильник"
 	door.close_prompt = "Закрыть холодильник"
-	door.build_panel(Vector3(w, h - 0.06, 0.06), outer, false)
+	door.open_sound = Sfx.CABINET_OPEN
+	door.close_sound = Sfx.CABINET_CLOSE
+	door.sound_pitch = 0.8
+	door.build_panel(Vector3(w, h - 0.06, 0.06), outer, true)
 	root.add_child(door)
 	milk = add_prop(SimpleProps.milk(), root.to_global(Vector3(0.1, 0.62, 0.0))) as Prop
 	return door
@@ -496,13 +544,15 @@ func fill_bowl() -> void:
 
 
 ## Bed with the long side along local X and the open side (where you can reach under) at +Z.
-## Returns a marker under the bed. `interactable` becomes the mattress body if given.
-func _build_bed(root: Node3D, size: Vector3, blanket: Color, interactable: StaticBody3D) -> Node3D:
+## Returns a marker under the bed. The mattress is a Bed (crouch + interact hides under it);
+## pass one in to keep a reference to it.
+func _build_bed(root: Node3D, size: Vector3, blanket: Color, bed: Bed = null) -> Node3D:
 	var l := size.x
 	var w := size.z
 	var gap := 0.3
 	var frame := C_WOOD_DARK
-	var mattress: StaticBody3D = interactable if interactable else StaticBody3D.new()
+	var mattress: Bed = bed if bed else Bed.new()
+	mattress.width = w
 	mattress.collision_layer = Prop.LAYER_WORLD
 	root.add_child(mattress)
 	Lowpoly.add_mesh(mattress, Lowpoly.box(Vector3(l, 0.25, w)), C_WHITE, Vector3(0, gap + 0.125, 0))
@@ -541,6 +591,8 @@ func _build_wardrobe(root: Node3D) -> Array[Vector3]:
 		door.open_angle = deg_to_rad(105.0 * side)
 		door.open_prompt = "Открыть шкаф"
 		door.close_prompt = "Закрыть шкаф"
+		door.open_sound = Sfx.CABINET_OPEN
+		door.close_sound = Sfx.CABINET_CLOSE
 		door.build_panel(Vector3(w * 0.5 - 0.005, h - 0.09, 0.025), c.lightened(0.08), side > 0)
 		root.add_child(door)
 	var key_spot := Node3D.new()
@@ -577,7 +629,7 @@ func _build_dresser(parent: Node3D, pos: Vector3, yaw: float, vase_color: Color)
 	mirror.position = Vector3(0, 1.6, -d * 0.5 + 0.035)
 	root.add_child(mirror)
 	# Vase on top — knocking it off makes a lot of noise.
-	add_prop(SimpleProps.vase(vase_color), root.to_global(Vector3(0.28, h + 0.01, -0.05)))
+	add_prop(Vase.create(vase_color), root.to_global(Vector3(0.28, h + 0.01, -0.05)))
 
 
 func _build_lamp(root: Node3D, pos: Vector3) -> void:
