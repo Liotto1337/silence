@@ -1,0 +1,97 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/ui/main_menu.gd" id="1_menu"]
+[ext_resource type="PackedScene" path="res://scenes/ui/vhs_overlay.tscn" id="2_vhs"]
+
+[node name="MainMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_menu")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.03, 0.025, 0.03, 1)
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBox" type="VBoxContainer" parent="Center"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Title" type="Label" parent="Center/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.86, 0.8, 1)
+theme_override_font_sizes/font_size = 72
+text = "SILENCE"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="Center/VBox"]
+layout_mode = 2
+modulate = Color(1, 1, 1, 0.55)
+text = "альфа-версия 0.1"
+horizontal_alignment = 1
+
+[node name="Spacer" type="Control" parent="Center/VBox"]
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+
+[node name="Buttons" type="VBoxContainer" parent="Center/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(320, 0)
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="NewGame" type="Button" parent="Center/VBox/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Новая игра"
+
+[node name="StartNight" type="Button" parent="Center/VBox/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Сразу к ночи (тест)"
+
+[node name="SettingsButton" type="Button" parent="Center/VBox/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Настройки"
+
+[node name="Quit" type="Button" parent="Center/VBox/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Выход"
+
+[node name="Hint" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -400.0
+offset_top = -50.0
+offset_right = 400.0
+offset_bottom = -20.0
+grow_horizontal = 2
+grow_vertical = 0
+modulate = Color(1, 1, 1, 0.4)
+theme_override_font_sizes/font_size = 14
+text = "Без скримеров. Тишина — твой единственный союзник."
+horizontal_alignment = 1
+
+[node name="VhsOverlay" parent="." instance=ExtResource("2_vhs")]
