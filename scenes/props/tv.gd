@@ -10,8 +10,8 @@ var _screen: MeshInstance3D
 var _light: OmniLight3D
 var _audio: AudioStreamPlayer3D
 var _noise_timer: float = 0.0
-var _off_mat: StandardMaterial3D
-var _on_mat: StandardMaterial3D
+var _off_mat: Material
+var _on_mat: Material
 
 
 static func create() -> Tv:

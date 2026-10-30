@@ -37,7 +37,7 @@ func build_panel(size: Vector3, color: Color, mirrored: bool) -> void:
 	var center := Vector3(sx * size.x * 0.5, size.y * 0.5, 0)
 	_mirrored = mirrored
 	_panel_center = center
-	Lowpoly.add_mesh(self, Lowpoly.box(size), color, center)
+	Lowpoly.add_mesh(self, Lowpoly.box(size), color, center, Vector3.ZERO, 0.0, "wood_dark")
 	Lowpoly.add_box_shape(self, size, center)
 	# Handle on the free edge.
 	Lowpoly.add_mesh(self, Lowpoly.box(Vector3(0.03, 0.14, 0.03)), Color("b0b0b0"), Vector3(sx * (size.x - 0.07), size.y * 0.5, size.z * 0.5 + 0.02))

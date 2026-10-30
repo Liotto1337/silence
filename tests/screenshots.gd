@@ -1,6 +1,6 @@
 extends Node
 ## Debug helper: renders views of the house to PNG (needs a display, e.g. xvfb-run).
-## Output dir: env SHOT_DIR.
+## Output dir: env SHOT_DIR. Optional env SHOT_ONLY: comma-separated view names to render (faster).
 
 const VIEWS_MORNING := [
 	["m_hero_room", Vector3(7.2, 1.62, 4.3), Vector3(2.0, 0.6, 1.5)],
@@ -52,6 +52,8 @@ func _ready() -> void:
 	game.house.fridge_door.set_open(true)
 	await get_tree().create_timer(0.5).timeout
 	for v: Array in VIEWS_MORNING:
+		if not _wanted(v[0]):
+			continue
 		await _shot(cam, v[1], v[2], dir + "/" + v[0] + ".png")
 	# Monster close-ups in daylight (AI off, poses forced).
 	var monster: Monster = (load("res://scenes/monster/monster.tscn") as PackedScene).instantiate()
@@ -60,6 +62,8 @@ func _ready() -> void:
 	monster.global_position = Vector3(10.0, 0.05, 2.6)
 	monster.rotation.y = PI  # facing south, towards the cameras
 	for v: Array in VIEWS_MONSTER:
+		if not _wanted(v[0]):
+			continue
 		monster.model.pose = v[3]
 		monster.model.move_speed = v[4]
 		await get_tree().create_timer(0.6).timeout
@@ -74,6 +78,8 @@ func _ready() -> void:
 	player.add_item(Pickup.Item.FLASHLIGHT)
 	await get_tree().create_timer(0.5).timeout
 	for v: Array in VIEWS_NIGHT:
+		if not _wanted(v[0]):
+			continue
 		player.flashlight_on = v[3]
 		player.flashlight.visible = v[3]
 		player.flashlight.light_energy = 2.2
@@ -90,6 +96,11 @@ func _ready() -> void:
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png(dir + "/n_under_bed.png")
 	get_tree().quit()
+
+
+func _wanted(view: String) -> bool:
+	var only := OS.get_environment("SHOT_ONLY")
+	return only.is_empty() or view in only.split(",")
 
 
 func _shot(cam: Camera3D, pos: Vector3, target: Vector3, path: String) -> void:

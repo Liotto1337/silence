@@ -36,6 +36,16 @@ const AMBIENT: Array[AudioStream] = [
 	preload("res://assets/sounds/amb_electric_wave.ogg"),
 	preload("res://assets/sounds/amb_crow.ogg"),
 	preload("res://assets/sounds/amb_crow_once.ogg"),
+	preload("res://assets/sounds/amb_house_1.ogg"),
+	preload("res://assets/sounds/amb_house_2.ogg"),
+	preload("res://assets/sounds/creak_1.ogg"),
+	preload("res://assets/sounds/creak_2.ogg"),
+]
+const ROOM_TONE := preload("res://assets/sounds/room_tone.ogg")
+const MONSTER_BREATH := preload("res://assets/sounds/monster_breath.ogg")
+const MONSTER_GROWLS: Array[AudioStream] = [
+	preload("res://assets/sounds/monster_growl_1.ogg"),
+	preload("res://assets/sounds/monster_growl_2.ogg"),
 ]
 const THUD := preload("res://assets/sounds/impact_thud.wav")
 const FAN_HUM := preload("res://assets/sounds/fan_hum.wav")
@@ -92,6 +102,13 @@ func play_2d(stream: AudioStream, volume_db: float = 0.0, pitch: float = 1.0) ->
 	add_child(p)
 	p.finished.connect(p.queue_free)
 	p.play()
+
+
+## Returns a looping copy of an Ogg stream.
+func looped_ogg(stream: AudioStreamOggVorbis) -> AudioStreamOggVorbis:
+	var s := stream.duplicate() as AudioStreamOggVorbis
+	s.loop = true
+	return s
 
 
 ## Returns a looping copy of a WAV stream (imported WAVs don't loop by default).

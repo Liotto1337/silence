@@ -91,6 +91,10 @@ var _sees_player: bool = false
 var _saw_hide: bool = false  # watched the player crawl under the bed they're hiding under
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
+const BREATH_DB := {State.SEARCH: -16.0, State.HUNT: -9.0, State.CHASE: -4.0}
+
+var _breath: AudioStreamPlayer3D
+
 @onready var agent: NavigationAgent3D = $NavigationAgent3D
 @onready var voice: AudioStreamPlayer3D = $Voice
 @onready var model: MonsterModel = $Model
@@ -101,6 +105,15 @@ func _ready() -> void:
 	collision_mask = Prop.LAYER_WORLD | Prop.LAYER_PLAYER | Prop.LAYER_PROPS | Prop.LAYER_DOORS
 	NoiseBus.noise_emitted.connect(_on_noise)
 	model.footstep.connect(_on_footstep)
+	# Heavy breathing you can locate in the dark; it gets louder the angrier the monster is.
+	_breath = AudioStreamPlayer3D.new()
+	_breath.stream = Sfx.looped_ogg(Sfx.MONSTER_BREATH)
+	_breath.position = Vector3(0, 1.8, 0)
+	_breath.unit_size = 2.5
+	_breath.max_distance = 20.0
+	_breath.volume_db = -60.0
+	add_child(_breath)
+	_breath.play()
 
 
 ## Starts the AI once the navigation map has synced.
@@ -136,6 +149,7 @@ func is_frozen() -> bool:
 func _physics_process(delta: float) -> void:
 	if not active or player == null:
 		model.move_speed = 0.0
+		_breath.volume_db = lerpf(_breath.volume_db, -60.0, 0.04)
 		return
 	_sees_player = _can_see_player()
 	if state != State.CHASE and _sees_player:
@@ -168,6 +182,7 @@ func _enter_hunt() -> void:
 	_roar_timer = ROAR_TIME
 	voice.stream = Sfx.ROAR
 	voice.play()
+	Sfx.play_3d(Sfx.MONSTER_GROWLS.pick_random(), global_position + Vector3(0, 1.8, 0), -3.0, 40.0)
 	Sfx.play_2d(Sfx.ROAR, -12.0)  # heard across the whole house
 	_go_to(_player_spot(), HUNT_SPEED)
 
@@ -185,6 +200,7 @@ func _enter_chase() -> void:
 	_last_seen = _player_spot()
 	voice.stream = Sfx.ROAR  # the same scream as the hunt start: it has seen you
 	voice.play()
+	Sfx.play_3d(Sfx.MONSTER_GROWLS.pick_random(), global_position + Vector3(0, 1.8, 0), -3.0, 40.0)
 	_has_target = false
 
 
@@ -489,6 +505,7 @@ func _update_scan(delta: float) -> void:
 
 
 func _update_model() -> void:
+	_breath.volume_db = lerpf(_breath.volume_db, BREATH_DB[state] if active else -60.0, 0.04)
 	var v := get_real_velocity()
 	model.move_speed = Vector2(v.x, v.z).length()
 	model.head_yaw = _head_yaw

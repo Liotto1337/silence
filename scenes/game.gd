@@ -10,6 +10,7 @@ var monster: Monster
 var quests: Quests
 var _busy: bool = false  # a fade / transition is running
 var _ambient_timer: float = 0.0
+var _room_tone: AudioStreamPlayer
 
 @onready var house: House = $House
 @onready var player: Player = $Player
@@ -105,6 +106,11 @@ func _start_night() -> void:
 	monster.activate(player, house.patrol_points)
 	hud.monster = monster
 	quests.start_night()
+	_room_tone = AudioStreamPlayer.new()
+	_room_tone.stream = Sfx.looped_ogg(Sfx.ROOM_TONE)
+	_room_tone.volume_db = -22.0
+	add_child(_room_tone)
+	_room_tone.play()
 	_ambient_timer = randf_range(AMBIENT_FIRST_DELAY.x, AMBIENT_FIRST_DELAY.y)
 	hud.show_message("Что-то ходит по дому. Найди ключ и выберись. Тихо.", 5.0)
 
@@ -170,10 +176,7 @@ func _make_environment(night: bool) -> Environment:
 	e.background_mode = Environment.BG_COLOR
 	e.background_color = Color.BLACK
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	e.ssao_enabled = true
-	e.glow_enabled = true
-	e.glow_intensity = 0.5
+	e.tonemap_mode = Environment.TONE_MAPPER_LINEAR  # PS1: no filmic curve, no SSAO, no bloom
 	if night:
 		e.ambient_light_color = Color(0.3, 0.36, 0.55)
 		e.ambient_light_energy = 0.07
@@ -183,4 +186,7 @@ func _make_environment(night: bool) -> Environment:
 	else:
 		e.ambient_light_color = Color(1.0, 0.93, 0.82)
 		e.ambient_light_energy = 0.45
+		e.fog_enabled = true  # short-range haze like the console's depth cueing
+		e.fog_light_color = Color(0.62, 0.55, 0.46)
+		e.fog_density = 0.012
 	return e

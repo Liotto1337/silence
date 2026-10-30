@@ -122,17 +122,17 @@ func add_prop(prop: Node3D, pos: Vector3, yaw: float = 0.0) -> Node3D:
 func _build_shell() -> void:
 	var shell := _group("Shell")
 	# Floors per room (top surface at y = 0).
-	_floor(shell, Rect2(0, 0, 8, Z_ROOMS), Color("46607d"))  # hero room carpet
-	_floor(shell, Rect2(0, Z_ROOMS, 8, Z_MID - Z_ROOMS), Color("6b4a32"))  # living room wood
-	_floor(shell, Rect2(8, 0, X_HALL - 8, Z_MID), Color("5a4636"))  # hall + closets
-	_floor(shell, Rect2(X_HALL, 0, X_EAST - X_HALL, Z_ROOMS), Color("6f5a4a"))  # parents' room
-	_floor(shell, Rect2(0, Z_MID, 4.6, Z_SOUTH - Z_MID), Color("8e9aa1"))  # kitchen tiles
-	_floor(shell, Rect2(4.6, Z_MID, X_HALL - 4.6, 1.8), Color("5a4636"))  # corridor
-	_floor(shell, Rect2(4.6, 11.4, 2.2, Z_SOUTH - 11.4), Color("cfd8dc"))  # bathroom tiles
-	_floor(shell, Rect2(6.8, 11.4, 2.0, Z_SOUTH - 11.4), Color("c3ccd0"))  # WC tiles
-	_floor(shell, Rect2(8.8, 11.4, X_HALL - 8.8, Z_SOUTH - 11.4), Color("5d5148"))  # vestibule
+	_floor(shell, Rect2(0, 0, 8, Z_ROOMS), Color("46607d"), "carpet")  # hero room carpet
+	_floor(shell, Rect2(0, Z_ROOMS, 8, Z_MID - Z_ROOMS), Color("6b4a32"), "wood")  # living room wood
+	_floor(shell, Rect2(8, 0, X_HALL - 8, Z_MID), Color("5a4636"), "wood")  # hall + closets
+	_floor(shell, Rect2(X_HALL, 0, X_EAST - X_HALL, Z_ROOMS), Color("6f5a4a"), "carpet")  # parents' room
+	_floor(shell, Rect2(0, Z_MID, 4.6, Z_SOUTH - Z_MID), Color("8e9aa1"), "tile")  # kitchen tiles
+	_floor(shell, Rect2(4.6, Z_MID, X_HALL - 4.6, 1.8), Color("5a4636"), "wood")  # corridor
+	_floor(shell, Rect2(4.6, 11.4, 2.2, Z_SOUTH - 11.4), Color("cfd8dc"), "tile")  # bathroom tiles
+	_floor(shell, Rect2(6.8, 11.4, 2.0, Z_SOUTH - 11.4), Color("c3ccd0"), "tile")  # WC tiles
+	_floor(shell, Rect2(8.8, 11.4, X_HALL - 8.8, Z_SOUTH - 11.4), Color("5d5148"), "concrete")  # vestibule
 	# Ceiling.
-	_box(shell, Vector3(X_EAST + 0.3, 0.1, Z_SOUTH + 0.4), Vector3(X_EAST * 0.5, H + 0.05, Z_SOUTH * 0.5), Color("d9d4c8"))
+	_box(shell, Vector3(X_EAST + 0.3, 0.1, Z_SOUTH + 0.4), Vector3(X_EAST * 0.5, H + 0.05, Z_SOUTH * 0.5), Color("d9d4c8"), true, "plaster", true)
 
 	# Exterior walls.
 	var north_vents := NORTH_VENTS.map(func(x: float) -> Array: return [x, VENT_W, VENT_H])
@@ -340,9 +340,9 @@ func _build_hero_room() -> void:
 func _build_living_room() -> void:
 	var room := _group("LivingRoom")
 	_room_light(room, Vector3(4.0, H, 7.2))
-	_mesh(room, Lowpoly.box(Vector3(3.2, 0.01, 2.0)), Color("6e2f2f"), Vector3(4.6, 0.005, 7.4))
+	_mesh(room, Lowpoly.box(Vector3(3.2, 0.01, 2.0)), Color("6e2f2f"), Vector3(4.6, 0.005, 7.4), Vector3.ZERO, "fabric")
 	# TV stand + TV against the south wall, facing north.
-	_box(room, Vector3(1.6, 0.5, 0.5), Vector3(4.6, 0.25, Z_MID - 0.35), C_WOOD_DARK)
+	_box(room, Vector3(1.6, 0.5, 0.5), Vector3(4.6, 0.25, Z_MID - 0.35), C_WOOD_DARK, true, "wood_dark")
 	tv = Tv.create()
 	tv.position = Vector3(4.6, 0.5, Z_MID - 0.35)
 	tv.rotation.y = PI
@@ -351,8 +351,8 @@ func _build_living_room() -> void:
 	var bed := _furniture(room, Vector3(4.8, 0, Z_ROOMS + 0.8), 0.0)
 	_build_bed(bed, Vector3(2.0, 0, 1.2), Color("7b3f3f"))
 	# Armchair by the west wall.
-	_box(room, Vector3(0.8, 0.45, 0.8), Vector3(1.0, 0.225, 6.4), Color("5e4a6b"))
-	_box(room, Vector3(0.15, 0.5, 0.8), Vector3(0.67, 0.7, 6.4), Color("5e4a6b"))
+	_box(room, Vector3(0.8, 0.45, 0.8), Vector3(1.0, 0.225, 6.4), Color("5e4a6b"), true, "fabric")
+	_box(room, Vector3(0.15, 0.5, 0.8), Vector3(0.67, 0.7, 6.4), Color("5e4a6b"), true, "fabric")
 	# The remote lies on the floor in front of the TV.
 	add_prop(TvRemote.create(tv), Vector3(4.0, 0.05, 7.7), 0.4)
 	_spot("BatteryLiving", battery_spots, Vector3(4.0, 0.52, Z_MID - 0.35))
@@ -361,7 +361,7 @@ func _build_living_room() -> void:
 func _build_hall() -> void:
 	var room := _group("Hall")
 	_room_light(room, Vector3(10.0, H, 5.6))
-	_mesh(room, Lowpoly.box(Vector3(1.4, 0.01, 5.0)), Color("6e2f2f"), Vector3(10.0, 0.005, 6.4))
+	_mesh(room, Lowpoly.box(Vector3(1.4, 0.01, 5.0)), Color("6e2f2f"), Vector3(10.0, 0.005, 6.4), Vector3.ZERO, "fabric")
 	_build_dresser(room, Vector3(X_HALL - 0.1 - 0.225, 0, 6.6), -PI * 0.5, Color("8fb3c9"))
 	# The duck is right by the doorway to the corridor — easy to step on in the dark.
 	add_prop(Duck.create(), Vector3(9.9, 0.05, 8.9), 0.8)
@@ -392,9 +392,9 @@ func _build_kitchen() -> void:
 	fridge_door = _build_fridge(fridge)
 	# Counter + stove along the north wall (clear of the doorway in the east wall).
 	var cz := Z_MID + 0.1 + 0.3
-	_box(room, Vector3(1.8, 0.9, 0.6), Vector3(1.95, 0.45, cz), Color("cfc6b4"))
-	_box(room, Vector3(1.84, 0.04, 0.64), Vector3(1.95, 0.92, cz), Color("3b3f45"), false)
-	_box(room, Vector3(0.8, 0.9, 0.6), Vector3(3.25, 0.45, cz), Color("e0e0e0"))
+	_box(room, Vector3(1.8, 0.9, 0.6), Vector3(1.95, 0.45, cz), Color("cfc6b4"), true, "wood_dark")
+	_box(room, Vector3(1.84, 0.04, 0.64), Vector3(1.95, 0.92, cz), Color("3b3f45"), false, "concrete")
+	_box(room, Vector3(0.8, 0.9, 0.6), Vector3(3.25, 0.45, cz), Color("e0e0e0"), true, "metal")
 	for dx: float in [-0.18, 0.18]:
 		_mesh(room, Lowpoly.cylinder(0.12, 0.02, 8), Color("222222"), Vector3(3.25 + dx, 0.91, cz))
 	# Table (long side north-south), chairs, bowl.
@@ -412,8 +412,8 @@ func _build_corridor() -> void:
 	var room := _group("Corridor")
 	_room_light(room, Vector3(7.0, H, 10.5))
 	_room_light(room, Vector3(10.4, H, 12.8))
-	_mesh(room, Lowpoly.box(Vector3(6.0, 0.01, 0.9)), Color("6e2f2f"), Vector3(8.3, 0.005, 10.5))
-	_mesh(room, Lowpoly.box(Vector3(1.4, 0.01, 0.8)), Color("3d4a3a"), Vector3(10.4, 0.005, Z_SOUTH - 0.6))
+	_mesh(room, Lowpoly.box(Vector3(6.0, 0.01, 0.9)), Color("6e2f2f"), Vector3(8.3, 0.005, 10.5), Vector3.ZERO, "fabric")
+	_mesh(room, Lowpoly.box(Vector3(1.4, 0.01, 0.8)), Color("3d4a3a"), Vector3(10.4, 0.005, Z_SOUTH - 0.6), Vector3.ZERO, "fabric")
 	_build_dresser(room, Vector3(X_HALL - 0.1 - 0.225, 0, 12.9), -PI * 0.5, Color("a9c98f"))
 
 
@@ -423,7 +423,7 @@ func _build_bathroom() -> void:
 	# Bathtub along the east wall (solid body + water surface, so there's no navmesh island inside).
 	var tub := _furniture(room, Vector3(6.35, 0, 13.2), 0.0)
 	var tc := Color("f2f2f0")
-	_box(tub, Vector3(0.65, 0.55, 1.8), Vector3(0, 0.275, 0), tc)
+	_box(tub, Vector3(0.65, 0.55, 1.8), Vector3(0, 0.275, 0), tc, true, "tile")
 	_mesh(tub, Lowpoly.box(Vector3(0.5, 0.01, 1.65)), Color("9fc4d6"), Vector3(0, 0.555, 0))
 	# Sink with a mirror on the east wall, by the door.
 	_box(room, Vector3(0.18, 0.8, 0.18), Vector3(6.6, 0.4, 11.9), tc)
@@ -459,9 +459,9 @@ func _build_shelf(root: Node3D, width: float) -> void:
 	var c := Color("8a7458")
 	var d := 0.36
 	for sx: float in [-1.0, 1.0]:
-		_box(root, Vector3(0.04, 1.8, d), Vector3(sx * (width * 0.5 - 0.02), 0.9, 0), c.darkened(0.2))
+		_box(root, Vector3(0.04, 1.8, d), Vector3(sx * (width * 0.5 - 0.02), 0.9, 0), c.darkened(0.2), true, "wood_dark")
 	for i in 3:
-		_box(root, Vector3(width, 0.03, d), Vector3(0, 0.15 + i * 0.62, 0), c)
+		_box(root, Vector3(width, 0.03, d), Vector3(0, 0.15 + i * 0.62, 0), c, true, "wood_dark")
 	for i in int(width / 0.45):
 		var w := randf_range(0.25, 0.35)
 		_box(root, Vector3(w, randf_range(0.2, 0.35), 0.28), Vector3(-width * 0.5 + 0.25 + i * 0.45, 0.17 + 0.62 * (i % 2 * 2) + 0.12, 0), Color("a68a5c").darkened(randf() * 0.2), false)
@@ -472,11 +472,11 @@ func _build_fridge(root: Node3D) -> HingedDoor:
 	var h := 1.9
 	var outer := Color("d6dade")
 	var inner := Color("f4f6f8")
-	_box(root, Vector3(w, h, 0.03), Vector3(0, h * 0.5, -d * 0.5 + 0.015), outer)
-	_box(root, Vector3(0.03, h, d), Vector3(-w * 0.5 + 0.015, h * 0.5, 0), outer)
-	_box(root, Vector3(0.03, h, d), Vector3(w * 0.5 - 0.015, h * 0.5, 0), outer)
-	_box(root, Vector3(w, 0.03, d), Vector3(0, h - 0.015, 0), outer)
-	_box(root, Vector3(w, 0.06, d), Vector3(0, 0.03, 0), outer)
+	_box(root, Vector3(w, h, 0.03), Vector3(0, h * 0.5, -d * 0.5 + 0.015), outer, true, "metal")
+	_box(root, Vector3(0.03, h, d), Vector3(-w * 0.5 + 0.015, h * 0.5, 0), outer, true, "metal")
+	_box(root, Vector3(0.03, h, d), Vector3(w * 0.5 - 0.015, h * 0.5, 0), outer, true, "metal")
+	_box(root, Vector3(w, 0.03, d), Vector3(0, h - 0.015, 0), outer, true, "metal")
+	_box(root, Vector3(w, 0.06, d), Vector3(0, 0.03, 0), outer, true, "metal")
 	for y: float in [0.6, 1.15]:
 		_box(root, Vector3(w - 0.06, 0.02, d - 0.06), Vector3(0, y, 0), inner)
 	var light := OmniLight3D.new()
@@ -501,18 +501,18 @@ func _build_fridge(root: Node3D) -> HingedDoor:
 
 
 func _build_table(root: Node3D, size: Vector3) -> void:
-	_box(root, Vector3(size.x, 0.05, size.z), Vector3(0, size.y - 0.025, 0), C_WOOD)
+	_box(root, Vector3(size.x, 0.05, size.z), Vector3(0, size.y - 0.025, 0), C_WOOD, true, "wood_dark")
 	for sx: float in [-1.0, 1.0]:
 		for sz: float in [-1.0, 1.0]:
-			_box(root, Vector3(0.06, size.y - 0.05, 0.06), Vector3(sx * (size.x * 0.5 - 0.06), (size.y - 0.05) * 0.5, sz * (size.z * 0.5 - 0.06)), C_WOOD_DARK)
+			_box(root, Vector3(0.06, size.y - 0.05, 0.06), Vector3(sx * (size.x * 0.5 - 0.06), (size.y - 0.05) * 0.5, sz * (size.z * 0.5 - 0.06)), C_WOOD_DARK, true, "wood_dark")
 
 
 func _build_chair(root: Node3D) -> void:
-	_box(root, Vector3(0.42, 0.04, 0.42), Vector3(0, 0.45, 0), C_WOOD)
-	_box(root, Vector3(0.42, 0.45, 0.04), Vector3(0, 0.7, 0.19), C_WOOD)
+	_box(root, Vector3(0.42, 0.04, 0.42), Vector3(0, 0.45, 0), C_WOOD, true, "wood_dark")
+	_box(root, Vector3(0.42, 0.45, 0.04), Vector3(0, 0.7, 0.19), C_WOOD, true, "wood_dark")
 	for sx: float in [-1.0, 1.0]:
 		for sz: float in [-1.0, 1.0]:
-			_box(root, Vector3(0.04, 0.45, 0.04), Vector3(sx * 0.18, 0.225, sz * 0.18), C_WOOD_DARK)
+			_box(root, Vector3(0.04, 0.45, 0.04), Vector3(sx * 0.18, 0.225, sz * 0.18), C_WOOD_DARK, true, "wood_dark")
 
 
 func _build_bowl(pos: Vector3) -> void:
@@ -555,16 +555,16 @@ func _build_bed(root: Node3D, size: Vector3, blanket: Color, bed: Bed = null) ->
 	mattress.width = w
 	mattress.collision_layer = Prop.LAYER_WORLD
 	root.add_child(mattress)
-	Lowpoly.add_mesh(mattress, Lowpoly.box(Vector3(l, 0.25, w)), C_WHITE, Vector3(0, gap + 0.125, 0))
+	Lowpoly.add_mesh(mattress, Lowpoly.box(Vector3(l, 0.25, w)), C_WHITE, Vector3(0, gap + 0.125, 0), Vector3.ZERO, 0.0, "fabric")
 	Lowpoly.add_box_shape(mattress, Vector3(l, 0.25, w), Vector3(0, gap + 0.125, 0))
-	Lowpoly.add_mesh(mattress, Lowpoly.box(Vector3(l * 0.62, 0.04, w + 0.04)), blanket, Vector3(l * 0.17, gap + 0.26, 0))
-	Lowpoly.add_mesh(mattress, Lowpoly.box(Vector3(0.35, 0.1, w * 0.7)), C_WHITE.darkened(0.05), Vector3(-l * 0.5 + 0.25, gap + 0.3, 0))
+	Lowpoly.add_mesh(mattress, Lowpoly.box(Vector3(l * 0.62, 0.04, w + 0.04)), blanket, Vector3(l * 0.17, gap + 0.26, 0), Vector3.ZERO, 0.0, "fabric")
+	Lowpoly.add_mesh(mattress, Lowpoly.box(Vector3(0.35, 0.1, w * 0.7)), C_WHITE.darkened(0.05), Vector3(-l * 0.5 + 0.25, gap + 0.3, 0), Vector3.ZERO, 0.0, "fabric")
 	# Skirts on the back, head and foot so the gap is reachable only from the open side.
-	_box(root, Vector3(l, gap, 0.04), Vector3(0, gap * 0.5, -w * 0.5 + 0.02), frame)
-	_box(root, Vector3(0.06, 0.95, w), Vector3(-l * 0.5 - 0.03, 0.475, 0), frame)
-	_box(root, Vector3(0.06, 0.5, w), Vector3(l * 0.5 + 0.03, 0.25, 0), frame)
-	_box(root, Vector3(0.06, gap, 0.06), Vector3(l * 0.5 - 0.03, gap * 0.5, w * 0.5 - 0.03), frame)
-	_box(root, Vector3(0.06, gap, 0.06), Vector3(-l * 0.5 + 0.03, gap * 0.5, w * 0.5 - 0.03), frame)
+	_box(root, Vector3(l, gap, 0.04), Vector3(0, gap * 0.5, -w * 0.5 + 0.02), frame, true, "wood_dark")
+	_box(root, Vector3(0.06, 0.95, w), Vector3(-l * 0.5 - 0.03, 0.475, 0), frame, true, "wood_dark")
+	_box(root, Vector3(0.06, 0.5, w), Vector3(l * 0.5 + 0.03, 0.25, 0), frame, true, "wood_dark")
+	_box(root, Vector3(0.06, gap, 0.06), Vector3(l * 0.5 - 0.03, gap * 0.5, w * 0.5 - 0.03), frame, true, "wood_dark")
+	_box(root, Vector3(0.06, gap, 0.06), Vector3(-l * 0.5 + 0.03, gap * 0.5, w * 0.5 - 0.03), frame, true, "wood_dark")
 	var marker := Node3D.new()
 	marker.name = "UnderBed"
 	marker.position = Vector3(0.2, 0.01, -0.05)
@@ -578,13 +578,13 @@ func _build_wardrobe(root: Node3D) -> Array[Vector3]:
 	var d := 0.6
 	var h := 2.0
 	var c := C_WOOD
-	_box(root, Vector3(w, h, 0.03), Vector3(0, h * 0.5, -d * 0.5 + 0.015), c.darkened(0.25))
-	_box(root, Vector3(0.03, h, d), Vector3(-w * 0.5 + 0.015, h * 0.5, 0), c)
-	_box(root, Vector3(0.03, h, d), Vector3(w * 0.5 - 0.015, h * 0.5, 0), c)
-	_box(root, Vector3(w, 0.03, d), Vector3(0, h - 0.015, 0), c)
-	_box(root, Vector3(w, 0.06, d), Vector3(0, 0.03, 0), c)
-	_box(root, Vector3(w - 0.06, 0.03, d - 0.04), Vector3(0, 1.3, -0.01), c)
-	_mesh(root, Lowpoly.cylinder(0.012, w - 0.08, 6), C_METAL, Vector3(0, 1.75, 0), Vector3(0, 0, PI * 0.5))
+	_box(root, Vector3(w, h, 0.03), Vector3(0, h * 0.5, -d * 0.5 + 0.015), c.darkened(0.25), true, "wood_dark")
+	_box(root, Vector3(0.03, h, d), Vector3(-w * 0.5 + 0.015, h * 0.5, 0), c, true, "wood_dark")
+	_box(root, Vector3(0.03, h, d), Vector3(w * 0.5 - 0.015, h * 0.5, 0), c, true, "wood_dark")
+	_box(root, Vector3(w, 0.03, d), Vector3(0, h - 0.015, 0), c, true, "wood_dark")
+	_box(root, Vector3(w, 0.06, d), Vector3(0, 0.03, 0), c, true, "wood_dark")
+	_box(root, Vector3(w - 0.06, 0.03, d - 0.04), Vector3(0, 1.3, -0.01), c, true, "wood_dark")
+	_mesh(root, Lowpoly.cylinder(0.012, w - 0.08, 6), C_METAL, Vector3(0, 1.75, 0), Vector3(0, 0, PI * 0.5), "metal")
 	for side: float in [-1.0, 1.0]:
 		var door := HingedDoor.new()
 		door.position = Vector3(side * w * 0.5, 0.06, d * 0.5 + 0.015)
@@ -609,11 +609,11 @@ func _build_dresser(parent: Node3D, pos: Vector3, yaw: float, vase_color: Color)
 	var d := 0.45
 	var h := 0.8
 	var c := Color("6d4c33")
-	_box(root, Vector3(w, h, 0.03), Vector3(0, h * 0.5, -d * 0.5 + 0.015), c.darkened(0.2))
-	_box(root, Vector3(0.03, h, d), Vector3(-w * 0.5 + 0.015, h * 0.5, 0), c)
-	_box(root, Vector3(0.03, h, d), Vector3(w * 0.5 - 0.015, h * 0.5, 0), c)
-	_box(root, Vector3(w + 0.04, 0.03, d + 0.02), Vector3(0, h - 0.015, 0.01), c.darkened(0.1))
-	_box(root, Vector3(w, 0.06, d), Vector3(0, 0.03, 0), c.darkened(0.2))
+	_box(root, Vector3(w, h, 0.03), Vector3(0, h * 0.5, -d * 0.5 + 0.015), c.darkened(0.2), true, "wood_dark")
+	_box(root, Vector3(0.03, h, d), Vector3(-w * 0.5 + 0.015, h * 0.5, 0), c, true, "wood_dark")
+	_box(root, Vector3(0.03, h, d), Vector3(w * 0.5 - 0.015, h * 0.5, 0), c, true, "wood_dark")
+	_box(root, Vector3(w + 0.04, 0.03, d + 0.02), Vector3(0, h - 0.015, 0.01), c.darkened(0.1), true, "wood_dark")
+	_box(root, Vector3(w, 0.06, d), Vector3(0, 0.03, 0), c.darkened(0.2), true, "wood_dark")
 	var slot := (h - 0.09) / 3.0
 	var depth := 0.38
 	for i in 3:
@@ -622,7 +622,7 @@ func _build_dresser(parent: Node3D, pos: Vector3, yaw: float, vase_color: Color)
 		root.add_child(drawer)
 		key_spots.append(drawer.content)
 	# Mirror on the wall above.
-	_mesh(root, Lowpoly.box(Vector3(0.8, 1.0, 0.03)), Color("3b2a1c"), Vector3(0, 1.6, -d * 0.5 + 0.015))
+	_mesh(root, Lowpoly.box(Vector3(0.8, 1.0, 0.03)), Color("3b2a1c"), Vector3(0, 1.6, -d * 0.5 + 0.015), Vector3.ZERO, "wood_dark")
 	var mirror := MeshInstance3D.new()
 	mirror.mesh = Lowpoly.box(Vector3(0.68, 0.88, 0.01))
 	mirror.material_override = Lowpoly.mat(Color("b9c7cf"), 0.05, 0.85)
@@ -652,11 +652,11 @@ func _build_toy_box(root: Node3D) -> ItemZone:
 	var d := 0.5
 	var h := 0.4
 	var c := Color("b5651d")
-	_box(root, Vector3(w, 0.03, d), Vector3(0, 0.015, 0), c)
-	_box(root, Vector3(w, h, 0.03), Vector3(0, h * 0.5, -d * 0.5 + 0.015), c)
-	_box(root, Vector3(w, h, 0.03), Vector3(0, h * 0.5, d * 0.5 - 0.015), c)
-	_box(root, Vector3(0.03, h, d), Vector3(-w * 0.5 + 0.015, h * 0.5, 0), c.darkened(0.1))
-	_box(root, Vector3(0.03, h, d), Vector3(w * 0.5 - 0.015, h * 0.5, 0), c.darkened(0.1))
+	_box(root, Vector3(w, 0.03, d), Vector3(0, 0.015, 0), c, true, "wood_dark")
+	_box(root, Vector3(w, h, 0.03), Vector3(0, h * 0.5, -d * 0.5 + 0.015), c, true, "wood_dark")
+	_box(root, Vector3(w, h, 0.03), Vector3(0, h * 0.5, d * 0.5 - 0.015), c, true, "wood_dark")
+	_box(root, Vector3(0.03, h, d), Vector3(-w * 0.5 + 0.015, h * 0.5, 0), c.darkened(0.1), true, "wood_dark")
+	_box(root, Vector3(0.03, h, d), Vector3(w * 0.5 - 0.015, h * 0.5, 0), c.darkened(0.1), true, "wood_dark")
 	var zone := ItemZone.create(Vector3(w - 0.06, h + 0.1, d - 0.06))
 	zone.position = Vector3(0, (h + 0.1) * 0.5, 0)
 	root.add_child(zone)
@@ -691,25 +691,29 @@ func _spot(n: String, list: Array, pos: Vector3) -> Node3D:
 
 
 ## Static box with collision on the world layer (or visual only).
-func _box(parent: Node3D, size: Vector3, pos: Vector3, color: Color, collide: bool = true) -> Node3D:
+func _box(parent: Node3D, size: Vector3, pos: Vector3, color: Color, collide: bool = true, tex: String = "grain", world: bool = false) -> Node3D:
 	if not collide:
-		return _mesh(parent, Lowpoly.box(size), color, pos)
+		return _mesh(parent, Lowpoly.box(size), color, pos, Vector3.ZERO, tex, world)
 	var body := StaticBody3D.new()
 	body.collision_layer = Prop.LAYER_WORLD
 	body.collision_mask = 0
 	body.position = pos
 	parent.add_child(body)
-	Lowpoly.add_mesh(body, Lowpoly.box(size), color)
+	_mesh(body, Lowpoly.box(size), color, Vector3.ZERO, Vector3.ZERO, tex, world)
 	Lowpoly.add_box_shape(body, size)
 	return body
 
 
-func _mesh(parent: Node3D, mesh: Mesh, color: Color, pos: Vector3, rot: Vector3 = Vector3.ZERO) -> MeshInstance3D:
-	return Lowpoly.add_mesh(parent, mesh, color, pos, rot)
+## `world` pins the texture to the world (shell pieces); otherwise it follows the object.
+func _mesh(parent: Node3D, mesh: Mesh, color: Color, pos: Vector3, rot: Vector3 = Vector3.ZERO, tex: String = "grain", world: bool = false) -> MeshInstance3D:
+	var mi := Lowpoly.add_mesh(parent, mesh, color, pos, rot, 0.0, tex)
+	if world:
+		mi.material_override = Lowpoly.mat(color, 0.9, 0.0, 0.0, tex, true, 0.0, 0.85 if tex == "wallpaper" else 0.0)
+	return mi
 
 
-func _floor(parent: Node3D, r: Rect2, color: Color) -> void:
-	_box(parent, Vector3(r.size.x, 0.2, r.size.y), Vector3(r.position.x + r.size.x * 0.5, -0.1, r.position.y + r.size.y * 0.5), color)
+func _floor(parent: Node3D, r: Rect2, color: Color, tex: String = "wood") -> void:
+	_box(parent, Vector3(r.size.x, 0.2, r.size.y), Vector3(r.position.x + r.size.x * 0.5, -0.1, r.position.y + r.size.y * 0.5), color, true, tex, true)
 
 
 ## Wall running along X at depth z, from x0 to x1. Openings: [[centre_x, width, height], ...].
@@ -719,10 +723,10 @@ func _wall_x(parent: Node3D, z: float, x0: float, x1: float, openings: Array) ->
 		var b: float = seg[1]
 		var y0: float = seg[2]
 		var y1: float = seg[3]
-		_box(parent, Vector3(b - a, y1 - y0, T), Vector3((a + b) * 0.5, (y0 + y1) * 0.5, z), C_WALL)
+		_box(parent, Vector3(b - a, y1 - y0, T), Vector3((a + b) * 0.5, (y0 + y1) * 0.5, z), C_WALL, true, "wallpaper", true)
 		if y0 == 0.0:
 			for side: float in [-1.0, 1.0]:
-				_mesh(parent, Lowpoly.box(Vector3(b - a, 0.1, 0.02)), C_WALL_TRIM, Vector3((a + b) * 0.5, 0.05, z + side * (T * 0.5 + 0.01)))
+				_mesh(parent, Lowpoly.box(Vector3(b - a, 0.1, 0.02)), C_WALL_TRIM, Vector3((a + b) * 0.5, 0.05, z + side * (T * 0.5 + 0.01)), Vector3.ZERO, "wood_dark", true)
 
 
 ## Wall running along Z at x, from z0 to z1.
@@ -732,10 +736,10 @@ func _wall_z(parent: Node3D, x: float, z0: float, z1: float, openings: Array) ->
 		var b: float = seg[1]
 		var y0: float = seg[2]
 		var y1: float = seg[3]
-		_box(parent, Vector3(T, y1 - y0, b - a), Vector3(x, (y0 + y1) * 0.5, (a + b) * 0.5), C_WALL)
+		_box(parent, Vector3(T, y1 - y0, b - a), Vector3(x, (y0 + y1) * 0.5, (a + b) * 0.5), C_WALL, true, "wallpaper", true)
 		if y0 == 0.0:
 			for side: float in [-1.0, 1.0]:
-				_mesh(parent, Lowpoly.box(Vector3(0.02, 0.1, b - a)), C_WALL_TRIM, Vector3(x + side * (T * 0.5 + 0.01), 0.05, (a + b) * 0.5))
+				_mesh(parent, Lowpoly.box(Vector3(0.02, 0.1, b - a)), C_WALL_TRIM, Vector3(x + side * (T * 0.5 + 0.01), 0.05, (a + b) * 0.5), Vector3.ZERO, "wood_dark", true)
 
 
 ## Splits a wall span into solid pieces: [start, end, y_bottom, y_top] (full height or lintels).

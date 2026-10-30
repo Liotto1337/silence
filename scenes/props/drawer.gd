@@ -14,7 +14,7 @@ static func create(width: float, height: float, depth: float, color: Color) -> D
 	var d := Drawer.new()
 	# Front panel + tray (bottom, sides, back) so items inside are visible when pulled out.
 	var front := Vector3(width, height, 0.02)
-	Lowpoly.add_mesh(d, Lowpoly.box(front), color, Vector3(0, 0, depth * 0.5))
+	Lowpoly.add_mesh(d, Lowpoly.box(front), color, Vector3(0, 0, depth * 0.5), Vector3.ZERO, 0.0, "wood_dark")
 	Lowpoly.add_box_shape(d, front, Vector3(0, 0, depth * 0.5))
 	Lowpoly.add_mesh(d, Lowpoly.box(Vector3(0.12, 0.025, 0.025)), Color("c9b26b"), Vector3(0, 0, depth * 0.5 + 0.02))
 	var inner := color.darkened(0.35)

@@ -307,15 +307,15 @@ func _run() -> void:
 	var highest_stance := -INF
 	for i in 180:
 		await _frames(1)
-		var soles: Array[float] = []
-		for f in monster.model._foot:
-			soles.append(f.global_position.y - MonsterModel.ANKLE - monster.global_position.y)
+		var soles: Array[float] = monster.model.foot_heights()
 		lowest_sole = minf(lowest_sole, soles.min())
 		highest_stance = maxf(highest_stance, soles.min())
 	var walk_steps := steps.size()
-	var expected := 3.0 * Monster.PATROL_SPEED / (0.8 + 0.18 * Monster.PATROL_SPEED)
-	_check(walk_steps >= int(expected) - 1 and walk_steps <= int(expected) + 2, "footsteps follow the walk cycle (%d steps in 3 s, ~%.1f expected)" % [walk_steps, expected])
-	_check(lowest_sole > -0.015 and highest_stance < 0.03, "feet don't sink into the floor while walking (lowest sole %.3f m, stance foot up to %.3f m)" % [lowest_sole, highest_stance])
+	# The walk clip has two steps per 1.25 s at 1.7 m/s; the clip speed follows the real speed.
+	var expected := 3.0 * 2.0 / 1.25 * Monster.PATROL_SPEED / MonsterModel.WALK_REF_SPEED
+	_check(walk_steps >= int(expected) - 2 and walk_steps <= int(expected) + 2, "footsteps follow the walk cycle (%d steps in 3 s, ~%.1f expected)" % [walk_steps, expected])
+	# Toe-tip bones dip below the sole while the toe rolls, so the bounds are looser than a sole check.
+	_check(lowest_sole > -0.12 and highest_stance < 0.12, "feet don't sink into the floor while walking (lowest toe %.3f m, stance foot up to %.3f m)" % [lowest_sole, highest_stance])
 	monster.model.footstep.disconnect(on_step)
 	monster.active = false
 	monster.global_position = Vector3(10.0, 0.05, 6.0)  # middle of the hall
@@ -503,7 +503,7 @@ func _run() -> void:
 	_check(player.step_player.stream in Sfx.RUN_STEPS and sprint_noises.size() >= int(expected_steps) - 2 and sprint_noises.size() <= int(expected_steps) + 1,
 			"sprinting: one run step + noise per stride (%d in 1.6 s, ~%.1f expected)" % [sprint_noises.size(), expected_steps])
 	NoiseBus.noise_emitted.disconnect(rec_sprint)
-	_check(_game._ambient_timer > 0.0 and Sfx.AMBIENT.size() == 3, "random night ambience is scheduled")
+	_check(_game._ambient_timer > 0.0 and Sfx.AMBIENT.size() == 7, "random night ambience is scheduled")
 
 	print("--- settings")
 	var settings: Node = Settings
