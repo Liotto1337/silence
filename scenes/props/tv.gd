@@ -4,6 +4,9 @@ extends Interactable
 ## The monster switches it off when it reaches it.
 
 const NOISE_INTERVAL := 3.0
+const SIZE := Vector3(0.6, 0.54, 0.45)
+## Region of the model's front that is the picture tube (triangle centres inside it).
+const SCREEN_BOX := AABB(Vector3(-0.24, 0.08, 0.15), Vector3(0.4, 0.38, 0.2))
 
 var is_on: bool = false
 var _screen: MeshInstance3D
@@ -17,11 +20,18 @@ var _on_mat: Material
 static func create() -> Tv:
 	var tv := Tv.new()
 	tv.collision_layer = Prop.LAYER_WORLD
-	Lowpoly.add_mesh(tv, Lowpoly.box(Vector3(1.0, 0.6, 0.12)), Color("202020"), Vector3(0, 0.3, 0))
-	Lowpoly.add_box_shape(tv, Vector3(1.0, 0.6, 0.12), Vector3(0, 0.3, 0))
-	tv._screen = Lowpoly.add_mesh(tv, Lowpoly.box(Vector3(0.88, 0.5, 0.01)), Color("0d1110"), Vector3(0, 0.3, 0.061))
+	Lowpoly.add_box_shape(tv, SIZE, Vector3(0, SIZE.y * 0.5, 0))
+	# CRT model; the glass is cut out of its front so it can be dark or glowing.
+	var parts := Models.split(Models.mesh("crt_tv", SIZE), SCREEN_BOX)
+	var body := MeshInstance3D.new()
+	body.mesh = parts[0]
+	tv.add_child(body)
+	tv._screen = MeshInstance3D.new()
+	tv._screen.mesh = parts[1]
+	tv.add_child(tv._screen)
 	tv._off_mat = Lowpoly.mat(Color("0d1110"), 0.3)
 	tv._on_mat = Lowpoly.mat(Color("b8c8d0"), 0.3, 0.0, 2.5)
+	tv._screen.material_override = tv._off_mat
 	tv._light = OmniLight3D.new()
 	tv._light.position = Vector3(0, 0.3, 0.5)
 	tv._light.light_color = Color("a9c4ff")

@@ -16,6 +16,7 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	Lowpoly.clear_cache()
+	Models.clear_cache()
 
 
 func start_game(phase: Phase) -> void:

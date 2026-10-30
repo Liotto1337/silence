@@ -7,7 +7,7 @@ config_version=5
 
 config/name="Silence"
 config/description="Silence — first-person stealth horror (alpha)"
-config/version="0.1.0-alpha"
+config/version="0.5.0-alpha"
 run/main_scene="res://scenes/ui/main_menu.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"

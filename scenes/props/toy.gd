@@ -5,7 +5,6 @@ extends Prop
 
 enum Kind { BLOCK, BALL, TEDDY, CAR, PYRAMID }
 
-const COLORS := [Color("d9483b"), Color("3b7dd9"), Color("e8c547"), Color("4bb36a"), Color("a45bd1")]
 const RATTLE_TIME := 2.3  ## length of the clockwork sound
 const RATTLE_NOISE := 12.0
 const HIGHLIGHT_SHADER := preload("res://shaders/highlight.gdshader")
@@ -26,16 +25,16 @@ static func create(kind: Kind, color_index: int = 0) -> Toy:
 	t.kind = kind
 	t.add_to_group(&"toy")
 	t.mass = 0.4
-	var c: Color = COLORS[color_index % COLORS.size()]
 	match kind:
 		Kind.BLOCK:
 			t.display_name = "Кубик"
-			t.add_box(Vector3(0.18, 0.18, 0.18), c, Vector3(0, 0.09, 0))
+			t.add_box_shape(Vector3(0.18, 0.18, 0.18), Vector3(0, 0.09, 0))
+			t.add_model("block_a" if color_index % 2 == 0 else "block_b", Vector3(0.18, 0.18, 0.18))
 			t.impact_sounds = Sfx.WOOD_BLOCK
 			t.place_sounds = Sfx.WOOD_BLOCK
 		Kind.BALL:
 			t.display_name = "Мячик"
-			t.add_visual(Lowpoly.sphere(0.11, 8, 5), c, Vector3(0, 0.11, 0))
+			t.add_model("ball", Vector3(0.22, 0.22, 0.22))
 			t.add_sphere_shape(0.11, Vector3(0, 0.11, 0))
 			var pm := PhysicsMaterial.new()
 			pm.bounce = 0.4
@@ -44,20 +43,14 @@ static func create(kind: Kind, color_index: int = 0) -> Toy:
 			t.place_sounds = Sfx.BALL_BOUNCE
 		Kind.TEDDY:
 			t.display_name = "Плюшевый мишка"
-			t.add_visual(Lowpoly.sphere(0.11, 7, 4), Color("8a5a35"), Vector3(0, 0.11, 0))
-			t.add_visual(Lowpoly.sphere(0.075, 7, 4), Color("8a5a35"), Vector3(0, 0.27, 0))
-			t.add_visual(Lowpoly.sphere(0.03, 5, 3), Color("6b4428"), Vector3(0.06, 0.33, 0))
-			t.add_visual(Lowpoly.sphere(0.03, 5, 3), Color("6b4428"), Vector3(-0.06, 0.33, 0))
+			t.add_model("teddy", Vector3(0, 0.36, 0))
 			t.add_sphere_shape(0.11, Vector3(0, 0.11, 0))
 			t.add_sphere_shape(0.075, Vector3(0, 0.27, 0))
 			t.add_step_trigger(0.14, func(_p: Player) -> void: t.squeak())
 		Kind.CAR:
 			t.display_name = "Машинка"
-			t.add_box(Vector3(0.26, 0.08, 0.13), c, Vector3(0, 0.07, 0))
-			t.add_box(Vector3(0.13, 0.06, 0.11), c.lightened(0.3), Vector3(-0.02, 0.14, 0), false)
-			for x: float in [-0.08, 0.08]:
-				for z: float in [-0.07, 0.07]:
-					t.add_visual(Lowpoly.cylinder(0.035, 0.03, 6), Color("1d1d1d"), Vector3(x, 0.035, z), Vector3(PI / 2, 0, 0))
+			t.add_box_shape(Vector3(0.26, 0.11, 0.13), Vector3(0, 0.07, 0))
+			t.add_model("toy_car", Vector3(0.28, 0, 0.14))
 			t.impact_sounds = Sfx.PLASTIC
 			t.place_sounds = Sfx.PLASTIC
 			t._rattle_audio = AudioStreamPlayer3D.new()
@@ -67,7 +60,7 @@ static func create(kind: Kind, color_index: int = 0) -> Toy:
 			t.add_child(t._rattle_audio)
 		Kind.PYRAMID:
 			t.display_name = "Пирамидка"
-			t.add_visual(Lowpoly.cylinder(0.11, 0.24, 5, 0.0), c, Vector3(0, 0.12, 0))
+			t.add_model("pyramid", Vector3(0, 0.26, 0))
 			t.add_cylinder_shape(0.08, 0.24, Vector3(0, 0.12, 0))
 			t.impact_sounds = Sfx.WOOD_BLOCK
 			t.place_sounds = Sfx.WOOD_BLOCK
@@ -100,9 +93,8 @@ func set_highlight(on: bool) -> void:
 	if _highlight_mat == null:
 		_highlight_mat = ShaderMaterial.new()
 		_highlight_mat.shader = HIGHLIGHT_SHADER
-	for c in get_children():
-		if c is MeshInstance3D:
-			(c as MeshInstance3D).material_overlay = _highlight_mat if on else null
+	for c in find_children("*", "MeshInstance3D", true, false):
+		(c as MeshInstance3D).material_overlay = _highlight_mat if on else null
 
 
 func squeak() -> void:

@@ -18,6 +18,8 @@ const VIEWS_MORNING := [
 	["m_bath_vent", Vector3(6.4, 1.5, 11.9), Vector3(4.9, 0.4, 14.0)],
 	["m_fridge_open", Vector3(2.6, 1.6, 12.6), Vector3(0.6, 1.0, 10.4)],
 	["m_wc_door", Vector3(9.5, 1.62, 10.3), Vector3(7.0, 1.0, 11.8)],
+	["m_wc", Vector3(7.8, 1.5, 11.6), Vector3(7.8, 0.4, 14.0)],
+	["m_tv", Vector3(4.6, 1.3, 7.4), Vector3(4.6, 0.7, 9.6)],
 ]
 const VIEWS_MONSTER := [
 	["mon_front", Vector3(10.0, 1.6, 5.6), Vector3(10.0, 1.4, 2.6), MonsterModel.Pose.NORMAL, 0.0],

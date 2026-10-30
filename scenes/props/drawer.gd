@@ -10,19 +10,17 @@ var _closed_pos: Vector3
 var _tween: Tween
 
 
-static func create(width: float, height: float, depth: float, color: Color) -> Drawer:
+## `front` is the drawer front cut from the furniture model; `front_offset` places it on the drawer.
+## The tray behind it is the toy box model, squeezed to the drawer's size.
+static func create(width: float, height: float, depth: float, front: Mesh, front_offset: Vector3) -> Drawer:
 	var d := Drawer.new()
-	# Front panel + tray (bottom, sides, back) so items inside are visible when pulled out.
-	var front := Vector3(width, height, 0.02)
-	Lowpoly.add_mesh(d, Lowpoly.box(front), color, Vector3(0, 0, depth * 0.5), Vector3.ZERO, 0.0, "wood_dark")
-	Lowpoly.add_box_shape(d, front, Vector3(0, 0, depth * 0.5))
-	Lowpoly.add_mesh(d, Lowpoly.box(Vector3(0.12, 0.025, 0.025)), Color("c9b26b"), Vector3(0, 0, depth * 0.5 + 0.02))
-	var inner := color.darkened(0.35)
-	Lowpoly.add_mesh(d, Lowpoly.box(Vector3(width - 0.04, 0.01, depth)), inner, Vector3(0, -height * 0.5 + 0.01, 0))
+	var face := MeshInstance3D.new()
+	face.mesh = front
+	face.position = front_offset
+	d.add_child(face)
+	Lowpoly.add_box_shape(d, Vector3(width, height, 0.02), Vector3(0, 0, depth * 0.5))
+	Models.add(d, "toy_box", Vector3(width - 0.04, height * 0.7, depth - 0.02), Vector3(0, -height * 0.5 + 0.005, -0.01))
 	Lowpoly.add_box_shape(d, Vector3(width - 0.04, 0.01, depth), Vector3(0, -height * 0.5 + 0.01, 0))
-	for sx: float in [-1.0, 1.0]:
-		Lowpoly.add_mesh(d, Lowpoly.box(Vector3(0.01, height * 0.7, depth)), inner, Vector3(sx * (width * 0.5 - 0.03), -height * 0.15, 0))
-	Lowpoly.add_mesh(d, Lowpoly.box(Vector3(width - 0.04, height * 0.7, 0.01)), inner, Vector3(0, -height * 0.15, -depth * 0.5))
 	d.content = Node3D.new()
 	d.content.position = Vector3(0, -height * 0.5 + 0.015, 0)
 	d.add_child(d.content)

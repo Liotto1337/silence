@@ -31,16 +31,28 @@ func _ready() -> void:
 	_swing = open_angle
 
 
-## Builds a flat door panel extending from the hinge along +X (or -X when mirrored).
-func build_panel(size: Vector3, color: Color, mirrored: bool) -> void:
+## Door panel from a door model (assets/models/props), fitted to `size` and extending from the
+## hinge along +X (or -X when mirrored). A mirrored door is the model turned around, so its handle
+## stays on the free edge.
+func build_model_panel(id: String, size: Vector3, mirrored: bool) -> void:
 	var sx := -1.0 if mirrored else 1.0
-	var center := Vector3(sx * size.x * 0.5, size.y * 0.5, 0)
 	_mirrored = mirrored
-	_panel_center = center
-	Lowpoly.add_mesh(self, Lowpoly.box(size), color, center, Vector3.ZERO, 0.0, "wood_dark")
-	Lowpoly.add_box_shape(self, size, center)
-	# Handle on the free edge.
-	Lowpoly.add_mesh(self, Lowpoly.box(Vector3(0.03, 0.14, 0.03)), Color("b0b0b0"), Vector3(sx * (size.x - 0.07), size.y * 0.5, size.z * 0.5 + 0.02))
+	_panel_center = Vector3(sx * size.x * 0.5, size.y * 0.5, 0)
+	Models.add(self, id, size, Vector3(sx * size.x * 0.5, 0, 0), PI if mirrored else 0.0)
+	Lowpoly.add_box_shape(self, size, _panel_center)
+
+
+## Door panel from a mesh cut out of a piece of furniture; `offset` moves it so the hinge is at
+## this node's origin. The collision box follows the mesh.
+func build_mesh_panel(mesh: Mesh, offset: Vector3, mirrored: bool) -> void:
+	_mirrored = mirrored
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.position = offset
+	add_child(mi)
+	var box := mesh.get_aabb()
+	_panel_center = box.get_center() + offset
+	Lowpoly.add_box_shape(self, box.size.max(Vector3(0.02, 0.02, 0.02)), _panel_center)
 
 
 func get_prompt(player: Player) -> String:

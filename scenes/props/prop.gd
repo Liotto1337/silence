@@ -92,14 +92,13 @@ static func impact_noise_radius(speed: float) -> float:
 
 # --- construction helpers used by the factories in subclasses ---
 
-func add_box(size: Vector3, color: Color, pos: Vector3 = Vector3.ZERO, collide: bool = true) -> void:
-	Lowpoly.add_mesh(self, Lowpoly.box(size), color, pos)
-	if collide:
-		Lowpoly.add_box_shape(self, size, pos)
+## Visual from a model (see Models), its bottom centre at `pos`.
+func add_model(id: String, size: Vector3, pos: Vector3 = Vector3.ZERO, yaw: float = 0.0, tint: Color = Color.WHITE) -> MeshInstance3D:
+	return Models.add(self, id, size, pos, yaw, "", "", tint)
 
 
-func add_visual(mesh: Mesh, color: Color, pos: Vector3 = Vector3.ZERO, rot: Vector3 = Vector3.ZERO, emission: float = 0.0) -> void:
-	Lowpoly.add_mesh(self, mesh, color, pos, rot, emission)
+func add_box_shape(size: Vector3, pos: Vector3 = Vector3.ZERO) -> void:
+	Lowpoly.add_box_shape(self, size, pos)
 
 
 func add_sphere_shape(radius: float, pos: Vector3 = Vector3.ZERO) -> void:
