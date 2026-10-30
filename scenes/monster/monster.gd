@@ -5,7 +5,7 @@ extends CharacterBody3D
 ##
 ## SEARCH — patrols random waypoints and looks around each room; any heard noise reroutes it
 ##          to the source and fills patience.
-## HUNT   — patience full (3 loud noises): roars across the house, gets the player's position,
+## HUNT   — patience full (2 loud noises): roars across the house, gets the player's position,
 ##          moves faster.
 ## CHASE  — player in line of sight: turns to face the player and freezes for a second, then runs
 ##          (a bit slower than the player's sprint); for the first 5 s of the run it gets the
@@ -38,7 +38,7 @@ const LOOK_TIME_SWEEP := 4.0
 const LOOK_TIME_SWEEP_START := 3.0
 const HEAD_YAW_MAX := 1.2
 
-const PATIENCE_MAX := 3
+const PATIENCE_MAX := 2
 const PATIENCE_DECAY_TIME := 20.0  ## quiet seconds per patience point lost
 const SAME_SOURCE_COOLDOWN_PLAYER := 2.5  ## a burst of footsteps counts as one noise
 const SAME_SOURCE_COOLDOWN := 6.0

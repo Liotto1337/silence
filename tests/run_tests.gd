@@ -138,18 +138,33 @@ func _run() -> void:
 	player.teleport(Vector3(5.7, 0.05, 10.5), 0.0)  # corridor, north of the bathroom door
 	player.force_update_transform()
 	bath_door.interact(player)
-	await _frames(30)
+	await _frames(70)
 	_check(bath_door.is_open and bath_door.to_global(bath_door._panel_center).z > 11.8, "door opens away from the player (into the bathroom)")
 	bath_door.interact(player)
 	await _frames(30)
 	player.teleport(Vector3(5.7, 0.05, 12.6), 0.0)  # inside the bathroom
 	player.force_update_transform()
 	bath_door.interact(player)
-	await _frames(30)
+	await _frames(70)
 	_check(bath_door.to_global(bath_door._panel_center).z < 11.0, "from the other side it swings into the corridor")
 	bath_door.set_open(false)
 	house.front_door.interact(player)
 	_check(not house.front_door.is_open and house.front_door._locked_audio != null and house.front_door._locked_audio.playing, "locked front door rattles")
+
+	print("--- models: parts cut out of furniture")
+	var milk_in_fridge := house.fridge_door.get_parent_node_3d().to_local(house.milk.global_position)
+	_check(absf(milk_in_fridge.x) < 0.37 and absf(milk_in_fridge.z) < 0.3 and milk_in_fridge.y > 0.5, "milk stays on the fridge shelf (%s)" % milk_in_fridge.snapped(Vector3.ONE * 0.01))
+	_check(_box_size(house.fridge_door).z < 0.1, "the fridge door collides as a door, not as the whole fridge")
+	var wardrobe_doors: Array[float] = []
+	for d in house.find_children("*", "HingedDoor", true, false):
+		if (d as HingedDoor).open_prompt == "Открыть шкаф":
+			wardrobe_doors.append(snappedf(_box_size(d).x, 0.001))
+	_check(wardrobe_doors.size() == 4 and wardrobe_doors.min() == wardrobe_doors.max(), "both wardrobe doors are the same size %s" % [wardrobe_doors])
+	_check(house.tv._screen.mesh.get_aabb().size.z < 0.02, "the TV screen is just the glass, not the bezel")
+	var fronts_ok := true
+	for d in house.find_children("*", "Drawer", true, false):
+		fronts_ok = fronts_ok and ((d as Node).get_child(0) as MeshInstance3D).mesh.get_aabb().size.y < 0.25
+	_check(fronts_ok, "drawer fronts don't drag strips of the dresser frame along")
 	await _frames(30)
 
 	print("--- breakable vase, clockwork car")
@@ -221,6 +236,15 @@ func _run() -> void:
 		still_lit = still_lit or t.highlighted
 	_check(not quests.toy_hint_on and not still_lit, "the hint goes off once toys go into the box")
 	_check(quests.is_morning_done(), "morning complete")
+	var morning_pos := player.global_position
+	var morning_physics := player.is_physics_processing()
+	player.set_physics_process(false)
+	player.teleport(Vector3(8.0, 0.05, -0.6), 0.0)  # deep in the north duct
+	await _seconds(0.5)
+	_check(house.is_in_duct(player.global_position) and not house.is_in_duct(Vector3(5.6, 0.05, 0.9)) and _game.cold == 0.0 and _game.cold_overlay.get_cold() == 0.0,
+			"the ducts aren't cold in the morning, only at night")
+	player.teleport(morning_pos, player.rotation.y)
+	player.set_physics_process(morning_physics)
 
 	print("--- inventory / flashlight")
 	_check(not player.insert_battery(), "can't load a battery without flashlight")
@@ -257,9 +281,7 @@ func _run() -> void:
 	await _frames(2)
 	_check(monster.state == Monster.State.SEARCH and monster.patience == 1 and monster._investigating, "1st noise: investigates, patience 1")
 	NoiseBus.emit_noise(noise_pos, 10.0, null)
-	_check(monster.patience == 2, "2nd noise: patience 2")
-	NoiseBus.emit_noise(noise_pos, 10.0, null)
-	_check(monster.state == Monster.State.HUNT, "3rd noise: HUNT")
+	_check(Monster.PATIENCE_MAX == 2 and monster.state == Monster.State.HUNT, "2nd noise: patience 2/2, HUNT")
 	var hunt_target := monster.agent.target_position - player.global_position
 	_check(Vector2(hunt_target.x, hunt_target.z).length() < 0.3, "hunt targets the player's position")
 	await _frames(2)
@@ -350,7 +372,7 @@ func _run() -> void:
 	player.force_update_transform()
 	var through_closed := monster._can_see_player()
 	wc_door.set_open(true)
-	await _frames(30)
+	await _frames(70)
 	_check(not through_closed and monster._can_see_player(), "a closed door blocks sight, an open one doesn't")
 	wc_door.set_open(false)
 	await _frames(30)
@@ -432,6 +454,26 @@ func _run() -> void:
 			break
 	_check(escaped and not caught_in_vent[0], "monster can't follow into the vent and gives up (state %s)" % Monster.State.keys()[monster.state])
 	_check(monster.global_position.z > 0.05, "monster stayed inside the house")
+
+	print("--- cold in the vent ducts at night")
+	_check(_game.cold > 1.0 and _game.cold_overlay.get_cold() > 0.0, "crawling in the duct at night builds up cold, frost on the screen (%.1f s)" % _game.cold)
+	monster.active = false  # it waits right by the vent
+	var cold_in_duct: float = _game.cold
+	player.teleport(Vector3(5.6, 0.05, 2.0), 0.0)  # back in the hero room
+	await _seconds(1.0)
+	_check(_game.cold < cold_in_duct - 1.5, "out of the duct the player warms up twice as fast (%.1f -> %.1f s)" % [cold_in_duct, _game.cold])
+	_game.cold = _game.COLD_LIMIT - 0.5
+	player.teleport(Vector3(8.0, 0.05, -0.6), 0.0)
+	await _seconds(2.0)
+	_check(_game._busy and _game.pause_menu._title.text == "Ты замёрз", "%.0f s of cold in the duct kill the player" % _game.COLD_LIMIT)
+	_game._busy = false
+	_game.pause_menu._ending = false
+	_game.pause_menu.resume()
+	_game.cold = 0.0
+	_game.hud.fade.color.a = 0.0
+	player.set_controls_enabled(true)
+	player.teleport(Vector3(5.6, 0.05, 2.0), 0.0)
+	monster.active = true
 	player.set_physics_process(true)
 	player.crouching = false
 
@@ -536,6 +578,13 @@ func _pose(player: Player, feet: Vector3, height: float, target: Vector3) -> voi
 	player.head.rotation.x = player._pitch
 	player.force_update_transform()
 	player.camera.force_update_transform()
+
+
+func _box_size(body: Node) -> Vector3:
+	for c in body.get_children():
+		if c is CollisionShape3D and (c as CollisionShape3D).shape is BoxShape3D:
+			return ((c as CollisionShape3D).shape as BoxShape3D).size
+	return Vector3.ZERO
 
 
 func _reachable(map: RID, from: Vector3, to: Vector3) -> bool:

@@ -18,6 +18,11 @@ var open_sound: AudioStream
 var close_sound: AudioStream
 var locked_sound: AudioStream
 var sound_pitch: float = 1.0
+## Swing times; doors with long sounds take longer so the motion lasts as long as the creak.
+var open_time: float = 0.35
+var close_time: float = 0.35
+var open_ease: Tween.EaseType = Tween.EASE_IN_OUT
+var close_ease: Tween.EaseType = Tween.EASE_IN_OUT
 var _tween: Tween
 var _closed_y: float
 var _mirrored: bool = false
@@ -32,13 +37,13 @@ func _ready() -> void:
 
 
 ## Door panel from a door model (assets/models/props), fitted to `size` and extending from the
-## hinge along +X (or -X when mirrored). A mirrored door is the model turned around, so its handle
-## stays on the free edge.
+## hinge along +X (or -X when mirrored). The door models have their handle on -X, so a panel
+## running along +X is the model turned around: the handle always ends up on the free edge.
 func build_model_panel(id: String, size: Vector3, mirrored: bool) -> void:
 	var sx := -1.0 if mirrored else 1.0
 	_mirrored = mirrored
 	_panel_center = Vector3(sx * size.x * 0.5, size.y * 0.5, 0)
-	Models.add(self, id, size, Vector3(sx * size.x * 0.5, 0, 0), PI if mirrored else 0.0)
+	Models.add(self, id, size, Vector3(sx * size.x * 0.5, 0, 0), 0.0 if mirrored else PI)
 	Lowpoly.add_box_shape(self, size, _panel_center)
 
 
@@ -92,7 +97,8 @@ func set_open(value: bool) -> void:
 	if _tween:
 		_tween.kill()
 	_tween = create_tween().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
-	_tween.tween_property(self, "rotation:y", _closed_y + (_swing if is_open else 0.0), 0.35).set_trans(Tween.TRANS_SINE)
+	_tween.tween_property(self, "rotation:y", _closed_y + (_swing if is_open else 0.0), open_time if is_open else close_time) \
+			.set_trans(Tween.TRANS_SINE).set_ease(open_ease if is_open else close_ease)
 	var sound := open_sound if is_open else close_sound
 	if sound and is_inside_tree():
 		Sfx.play_3d(sound, to_global(_panel_center), -2.0, 25.0, sound_pitch * randf_range(0.96, 1.04))

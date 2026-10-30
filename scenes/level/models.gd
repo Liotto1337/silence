@@ -19,7 +19,7 @@ const DEFS := {
 	"table": ["table", "", 0.0],
 	"chair": ["chair", "", 0.0],
 	"table_lamp": ["table_lamp", "", 0.0],
-	"wardrobe": ["wardrobe", "", 0.0],
+	"wardrobe": ["wardrobe", "", 0.0, 0.0, "Wardrobe Door Left"],  # modelled ajar: rebuilt from the right one
 	"dresser": ["dresser", "", 0.0],
 	"crt_tv": ["crt_tv", "/TVCRT/", 0.0],
 	"tv_stand": ["tv_stand", "", 0.0],
@@ -57,7 +57,7 @@ const DEFS := {
 	"cereal": ["cereal", "", 0.0],
 	"bowl": ["bowl", "", 0.0],
 	"bowl_full": ["bowl_soup", "", 0.0],
-	"remote": ["remote", "", 0.0, PI * 0.5],
+	"remote": ["crt_tv", "/TVRemote/", PI / 3.0],  # the remote that comes with the TV
 	"flashlight": ["flashlight", "", 0.0, -PI * 0.5],
 	"key": ["key", "", PI * 0.5],
 	"battery": ["battery", "", PI * 0.5, PI * 0.5],
@@ -128,48 +128,39 @@ static func double_sided(src: ArrayMesh) -> ArrayMesh:
 	return out
 
 
-## Turns a flat part (a door modelled ajar) about `hinge` until its long side runs along X.
-static func straighten(src: ArrayMesh, hinge: Vector3) -> ArrayMesh:
-	var center := Vector2.ZERO
-	var count := 0
-	for si in src.get_surface_count():
-		for p: Vector3 in src.surface_get_arrays(si)[Mesh.ARRAY_VERTEX]:
-			center += Vector2(p.x, p.z)
-			count += 1
-	center /= maxf(count, 1)
-	var sxx := 0.0
-	var szz := 0.0
-	var sxz := 0.0
-	for si in src.get_surface_count():
-		for p: Vector3 in src.surface_get_arrays(si)[Mesh.ARRAY_VERTEX]:
-			var d := Vector2(p.x, p.z) - center
-			sxx += d.x * d.x
-			szz += d.y * d.y
-			sxz += d.x * d.y
-	# Principal axis in the XZ plane; a yaw of that angle brings it back onto X.
-	var turn := Transform3D(Basis(Vector3.UP, 0.5 * atan2(2.0 * sxz, sxx - szz)), Vector3.ZERO)
-	var xf := Transform3D(Basis(), hinge) * turn * Transform3D(Basis(), -hinge)
+## Mirror image of a mesh across the plane x = `x` (a left door from the right one).
+static func mirrored_x(src: ArrayMesh, x: float = 0.0) -> ArrayMesh:
 	var out := ArrayMesh.new()
 	for si in src.get_surface_count():
 		var arrays := src.surface_get_arrays(si)
 		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 		for i in verts.size():
-			verts[i] = xf * verts[i]
+			verts[i].x = 2.0 * x - verts[i].x
 		arrays[Mesh.ARRAY_VERTEX] = verts
 		if arrays[Mesh.ARRAY_NORMAL] != null:
 			var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
 			for i in normals.size():
-				normals[i] = turn.basis * normals[i]
+				normals[i].x = -normals[i].x
 			arrays[Mesh.ARRAY_NORMAL] = normals
+		# A mirror flips the winding: swap two corners of every triangle so the faces stay outward.
+		var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+		for t in range(0, idx.size(), 3):
+			var a := idx[t + 1]
+			idx[t + 1] = idx[t + 2]
+			idx[t + 2] = a
+		arrays[Mesh.ARRAY_INDEX] = idx
 		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 		out.surface_set_material(si, src.surface_get_material(si))
 	return out
 
 
-## Splits a mesh by triangle centre: returns [outside, inside] for the given box.
-static func split(src: ArrayMesh, box: AABB) -> Array[ArrayMesh]:
+## Splits a mesh by triangle centre: returns [outside, inside] for the given box. With `whole`, a
+## triangle goes inside only if all three corners are in the box (long frame strips that merely
+## cross it stay outside). Each part keeps only its own vertices, so its AABB is its real size.
+static func split(src: ArrayMesh, box: AABB, whole: bool = false) -> Array[ArrayMesh]:
 	var outside := ArrayMesh.new()
 	var inside := ArrayMesh.new()
+	var grown := box.grow(0.001)
 	for si in src.get_surface_count():
 		var arrays := src.surface_get_arrays(si)
 		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
@@ -177,17 +168,50 @@ static func split(src: ArrayMesh, box: AABB) -> Array[ArrayMesh]:
 		var a := PackedInt32Array()
 		var b := PackedInt32Array()
 		for t in range(0, idx.size(), 3):
-			var c := (verts[idx[t]] + verts[idx[t + 1]] + verts[idx[t + 2]]) / 3.0
-			var target := b if box.has_point(c) else a
+			var p0 := verts[idx[t]]
+			var p1 := verts[idx[t + 1]]
+			var p2 := verts[idx[t + 2]]
+			var is_in := grown.has_point(p0) and grown.has_point(p1) and grown.has_point(p2) if whole else box.has_point((p0 + p1 + p2) / 3.0)
+			var target := b if is_in else a
 			target.append_array([idx[t], idx[t + 1], idx[t + 2]])
 		for pair: Array in [[outside, a], [inside, b]]:
 			if (pair[1] as PackedInt32Array).is_empty():
 				continue
-			var copy := arrays.duplicate()
-			copy[Mesh.ARRAY_INDEX] = pair[1]
-			(pair[0] as ArrayMesh).add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, copy)
+			(pair[0] as ArrayMesh).add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, _compact(arrays, pair[1]))
 			(pair[0] as ArrayMesh).surface_set_material((pair[0] as ArrayMesh).get_surface_count() - 1, src.surface_get_material(si))
 	return [outside, inside]
+
+
+## Surface arrays reduced to the vertices `idx` uses (indices remapped).
+static func _compact(arrays: Array, idx: PackedInt32Array) -> Array:
+	var count := (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+	var remap := PackedInt32Array()
+	remap.resize(count)
+	remap.fill(-1)
+	var used := PackedInt32Array()
+	var new_idx := PackedInt32Array()
+	new_idx.resize(idx.size())
+	for i in idx.size():
+		var v := idx[i]
+		if remap[v] < 0:
+			remap[v] = used.size()
+			used.append(v)
+		new_idx[i] = remap[v]
+	var out := arrays.duplicate()
+	for k in Mesh.ARRAY_MAX:
+		if k == Mesh.ARRAY_INDEX or out[k] == null:
+			continue
+		var src: Variant = arrays[k]
+		if src.size() != count:  # not one element per vertex (tangents etc.): drop it
+			out[k] = null
+			continue
+		var dst: Variant = src.duplicate()
+		dst.resize(used.size())
+		for j in used.size():
+			dst[j] = src[used[j]]
+		out[k] = dst
+	out[Mesh.ARRAY_INDEX] = new_idx
+	return out
 
 
 # --- internals ---------------------------------------------------------------

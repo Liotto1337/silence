@@ -7,6 +7,7 @@
 [ext_resource type="Script" path="res://scenes/ui/pause_menu.gd" id="5_pause"]
 [ext_resource type="PackedScene" path="res://scenes/ui/vhs_overlay.tscn" id="6_vhs"]
 [ext_resource type="PackedScene" path="res://scenes/ui/ps1_filter.tscn" id="7_ps1"]
+[ext_resource type="PackedScene" path="res://scenes/ui/cold_overlay.tscn" id="8_cold"]
 
 [node name="Game" type="Node3D"]
 script = ExtResource("1_game")
@@ -19,6 +20,8 @@ script = ExtResource("2_house")
 [node name="Player" parent="." instance=ExtResource("3_player")]
 
 [node name="Ps1Filter" parent="." instance=ExtResource("7_ps1")]
+
+[node name="ColdOverlay" parent="." instance=ExtResource("8_cold")]
 
 [node name="HUD" parent="." instance=ExtResource("4_hud")]
 

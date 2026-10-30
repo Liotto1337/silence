@@ -11,8 +11,8 @@ static func create(target_tv: Tv) -> TvRemote:
 	r.tv = target_tv
 	r.display_name = "Пульт от телевизора"
 	r.mass = 0.15
-	r.add_box_shape(Vector3(0.06, 0.025, 0.18), Vector3(0, 0.0125, 0))
-	r.add_model("remote", Vector3(0.06, 0.025, 0.18))
+	r.add_box_shape(Vector3(0.056, 0.024, 0.22), Vector3(0, 0.012, 0))
+	r.add_model("remote", Vector3(0, 0, 0.22))
 	r.add_step_trigger(0.12, func(_p: Player) -> void: r.press())
 	r.impact_sounds = Sfx.PLASTIC
 	r.place_sounds = Sfx.PLASTIC

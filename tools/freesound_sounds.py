@@ -19,6 +19,7 @@ import numpy as np
 RATE = 44100
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "sounds")
 
+# breath.wav, breath_recover.wav and goal.wav are not built here: they are the 0.4 recordings.
 # Each entry: Freesound id -> what to make of it.
 #   "trim": [start, end] seconds of the recording to keep (end None = to the end)
 #   "out": one file name, or "slices": [names] to cut that many single hits (loudest first, kept in time order),
@@ -38,18 +39,15 @@ SPEC = [
     {"id": 249985, "out": "amb_electric_wave.ogg", "trim": [2.0, 16.0], "peak": -5.0, "fade": 2.0, "fade_in": 1.5},
     {"id": 332668, "out": "impact_thud.wav", "peak": -2.0, "fade": 0.1},
     {"id": 271096, "out": "fan_hum.wav", "peak": -6.0, "fade": 0.0},
-    {"id": 395563, "out": "breath.wav", "trim": [0.0, 3.4], "peak": -4.0, "fade": 0.2, "fade_in": 0.05, "drive": 4},
-    {"id": 169931, "out": "breath_recover.wav", "trim": [0.0, 1.8], "peak": -4.0, "fade": 0.4},
-    {"id": 536759, "out": "goal.wav", "peak": -3.0, "fade": 0.05},
     {"id": 329684, "slices": ["ball_bounce_1.wav", "ball_bounce_2.wav", "ball_bounce_3.wav"], "max_len": 0.3, "peak": -3.0, "fade": 0.1, "drive": 3},
     {"id": 133978, "slices": ["plastic_1.wav", "plastic_2.wav"], "max_len": 0.4, "peak": -3.0, "fade": 0.15},
     {"id": 245290, "out": "wood_block.wav", "trim": [0.0, 0.6], "peak": -3.0, "fade": 0.2, "drive": 4},
     {"id": 734580, "out": "car_ratchet.wav", "trim": [0.0, 2.3], "peak": -3.0, "fade": 0.2, "drive": 18},
     {"id": 568757, "out": "vase_hit.wav", "peak": -3.0, "fade": 0.1, "drive": 7},
     {"id": 128257, "out": "vase_break.wav", "peak": -1.0, "fade": 0.2},
-    {"id": 167171, "parts": [["drawer_open.wav", 0.9, 2.2], ["drawer_close.wav", 6.3, 7.7]], "peak": -3.0, "fade": 0.2, "fade_in": 0.05, "drive": 4},
+    {"id": 167171, "parts": [["drawer_open.wav", 1.26, 2.2], ["drawer_close.wav", 6.74, 7.7]], "peak": -3.0, "fade": 0.2, "fade_in": 0.05, "drive": 4},
     {"id": 386445, "parts": [["cabinet_open.wav", 0.15, 1.5], ["cabinet_close.wav", 2.75, 3.9]], "peak": -3.0, "fade": 0.2},
-    {"id": 216878, "out": "door_open.wav", "trim": [0.0, 2.2], "peak": -3.0, "fade": 0.3, "drive": 6},
+    {"id": 216878, "out": "door_open.wav", "trim": [0.28, 1.5], "peak": -3.0, "fade": 0.4, "drive": 6},
     {"id": 117614, "out": "door_close.wav", "peak": -3.0, "fade": 0.2},
     {"id": 321087, "out": "door_locked.wav", "peak": -3.0, "fade": 0.1, "drive": 4},
 ]

@@ -5,8 +5,9 @@ extends Interactable
 
 const NOISE_INTERVAL := 3.0
 const SIZE := Vector3(0.6, 0.54, 0.45)
-## Region of the model's front that is the picture tube (triangle centres inside it).
-const SCREEN_BOX := AABB(Vector3(-0.24, 0.08, 0.15), Vector3(0.4, 0.38, 0.2))
+## The picture tube: the glass sits 12 mm deep in the bezel (z = 0.213 at SIZE). The box catches only
+## the glass's triangle centres, not the bezel in front of it or the recess walls around it.
+const SCREEN_BOX := AABB(Vector3(-0.27, 0.11, 0.208), Vector3(0.54, 0.39, 0.007))
 
 var is_on: bool = false
 var _screen: MeshInstance3D

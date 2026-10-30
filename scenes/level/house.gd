@@ -45,9 +45,15 @@ const SOUTH_VENTS: Array[float] = [1.4, 5.25]  ## kitchen, bathroom
 const NORTH_DUCT_X := Vector2(-1.2, 21.7)
 const SOUTH_DUCT_X := Vector2(-1.2, 9.0)
 
+## Tops of the boards of the metal shelf model (closets) at its 1.8 m height.
+const SHELF_BOARDS: Array[float] = [0.195, 0.73, 1.265, 1.8]
+## The same boards for the wire rack inside the fridge (the shelf model at 1.12 m, 6 cm up).
+const FRIDGE_RACK: Array[float] = [0.181, 0.514, 0.847, 1.18]
 const RUG_Y := 0.004  ## rugs float a few mm above the floor: some have a curled corner, the flat rest would z-fight
 const FLOOR_Y := 0.6  ## wardrobe: height of the inside floor (the model has drawers below it)
 const DRESSER_TINT := Color(0.78, 0.7, 0.6)  ## aged cream paint on the dresser model
+## Bottom and top of the dresser model's three drawer fronts (at its 0.8 m height).
+const DRESSER_DRAWERS: Array[Vector2] = [Vector2(0.027, 0.256), Vector2(0.272, 0.501), Vector2(0.514, 0.743)]
 const C_WALL := Color("b7a48a")
 const C_WALL_TRIM := Color("8c7a62")
 
@@ -106,6 +112,13 @@ func set_lights_on(on: bool) -> void:
 	for f in _fixtures:
 		f.material_override = Lowpoly.mat(Color("fff1c9"), 0.5, 0.0, 3.0) if on else null
 	lamp_light.visible = on
+
+
+## True inside one of the vent ducts behind the house walls (only a crawling player gets there).
+func is_in_duct(pos: Vector3) -> bool:
+	var north := pos.z < -T * 0.5 and pos.x > NORTH_DUCT_X.x and pos.x < NORTH_DUCT_X.y
+	var south := pos.z > Z_SOUTH + T * 0.5 and pos.x > SOUTH_DUCT_X.x and pos.x < SOUTH_DUCT_X.y
+	return pos.y < VENT_H and (north or south)
 
 
 func add_prop(prop: Node3D, pos: Vector3, yaw: float = 0.0) -> Node3D:
@@ -178,6 +191,7 @@ func _build_shell() -> void:
 	front_door.can_open = func(p: Player) -> bool: return p.has_key
 	front_door.open_sound = Sfx.DOOR_OPEN
 	front_door.locked_sound = Sfx.DOOR_LOCKED
+	_match_door_sounds(front_door)
 	front_door.build_model_panel("door_front", Vector3(DOOR_W, DOOR_H, 0.08), false)
 	shell.add_child(front_door)
 
@@ -195,10 +209,20 @@ func _room_door(parent: Node3D, hinge_x: float, wall_z: float, width: float, mir
 	door.close_prompt = "Закрыть дверь"
 	door.open_sound = Sfx.DOOR_OPEN
 	door.close_sound = Sfx.DOOR_CLOSE
+	_match_door_sounds(door)
 	door.collision_layer = Prop.LAYER_DOORS
 	door.build_model_panel("door_room", Vector3(width - 0.04, DOOR_H - 0.03, 0.05), mirrored)
 	parent.add_child(door)
 	room_doors.append(door)
+
+
+## Door swing timed to the door sounds: it starts moving on the hinge squeak and slows down through
+## the creak (about 1 s); when closing it speeds up and hits the frame on the slam (0.27 s in).
+func _match_door_sounds(door: HingedDoor) -> void:
+	door.open_time = 1.0
+	door.open_ease = Tween.EASE_OUT
+	door.close_time = 0.27
+	door.close_ease = Tween.EASE_IN
 
 
 ## The removed vent grate leaning against a wall. `pos` is its foot on the floor; at yaw 0 it
@@ -347,7 +371,7 @@ func _build_hall() -> void:
 	_build_shelf(s1, 1.1)
 	var s2 := _furniture(room, Vector3(10.35, 0, 0.1 + 0.18), 0.0)  # clear of the door swinging in
 	_build_shelf(s2, 1.4)
-	_spot("BatteryCloset", battery_spots, s2.to_global(Vector3(-0.5, 0.79, 0.0)))
+	_spot("BatteryCloset", battery_spots, s2.to_global(Vector3(-0.5, SHELF_BOARDS[1] + 0.01, 0.0)))
 
 
 func _build_parents_room() -> void:
@@ -399,12 +423,19 @@ func _build_bathroom() -> void:
 	# Bathtub along the east wall (a solid body, so there's no navmesh island inside).
 	var tub := _furniture(room, Vector3(6.35, 0, 13.2), 0.0)
 	_solid(tub, Vector3(0.65, 0.55, 1.8), Vector3(0, 0.275, 0))
-	Models.add(tub, "bathtub", Vector3(1.8, 0.55, 0.65), Vector3.ZERO, PI * 0.5)
+	# A few mm above the floor (its underside is a flat quad that z-fought with the tiles) and
+	# double-sided: the model's inner bottom faces down and was culled, so the floor showed through.
+	var tub_model := Models.add(tub, "bathtub", Vector3(1.8, 0.55, 0.65), Vector3(0, RUG_Y, 0), PI * 0.5)
+	tub_model.mesh = Models.double_sided(tub_model.mesh)
 	# Washbasin with a mirror on the east wall, by the door.
-	_solid(room, Vector3(0.18, 0.8, 0.18), Vector3(6.6, 0.4, 11.9))
-	_solid(room, Vector3(0.45, 0.12, 0.55), Vector3(6.475, 0.86, 11.9))
+	# Collision follows the model: pedestal, the basin's bottom (0.6 m) and its rim (0.7 m).
+	_solid(room, Vector3(0.18, 0.5, 0.18), Vector3(6.6, 0.25, 11.9))
+	_solid(room, Vector3(0.42, 0.1, 0.42), Vector3(6.48, 0.55, 11.9))
+	_solid(room, Vector3(0.04, 0.1, 0.5), Vector3(6.27, 0.65, 11.9))
+	for side: float in [-1.0, 1.0]:
+		_solid(room, Vector3(0.45, 0.1, 0.04), Vector3(6.475, 0.65, 11.9 + side * 0.23))
 	Models.add(room, "sink", Vector3(0.5, 1.6, 0.5), Vector3(6.5, 0.0, 11.9), -PI * 0.5)
-	_spot("BatteryBath", battery_spots, Vector3(6.45, 0.94, 11.75))
+	_spot("BatteryBath", battery_spots, Vector3(6.45, 0.62, 11.85))  # in the basin
 
 
 func _build_wc() -> void:
@@ -429,18 +460,19 @@ func _build_patrol_points() -> void:
 
 # --- furniture builders (local space: front faces +Z) -----------------------
 
-## Open storage shelf (closets): three planks with boxes on them.
+## Open storage shelf (closets): the metal shelf model with boxes on its bottom and third boards.
+## The collision boards sit exactly under the model's boards, so things put on them don't float.
 func _build_shelf(root: Node3D, width: float) -> void:
 	var d := 0.36
 	for sx: float in [-1.0, 1.0]:
 		_solid(root, Vector3(0.04, 1.8, d), Vector3(sx * (width * 0.5 - 0.02), 0.9, 0))
-	for i in 3:
-		_solid(root, Vector3(width, 0.03, d), Vector3(0, 0.15 + i * 0.62, 0))
+	for top in SHELF_BOARDS:
+		_solid(root, Vector3(width, 0.05, d), Vector3(0, top - 0.025, 0))
 	Models.add(root, "metal_shelf", Vector3(width, 1.8, d))
 	for i in int(width / 0.45):
 		var w := randf_range(0.25, 0.35)
 		var h := randf_range(0.2, 0.3)
-		Models.add(root, "cardboard_box" if i % 2 == 0 else "crate", Vector3(w, h, 0.28), Vector3(-width * 0.5 + 0.25 + i * 0.45, 0.17 + 0.62 * (i % 2 * 2), 0), randf_range(-0.2, 0.2))
+		Models.add(root, "cardboard_box" if i % 2 == 0 else "crate", Vector3(w, h, 0.28), Vector3(-width * 0.5 + 0.25 + i * 0.45, SHELF_BOARDS[i % 2 * 2], 0), randf_range(-0.2, 0.2))
 
 func _build_fridge(root: Node3D) -> HingedDoor:
 	var w := 0.8
@@ -451,10 +483,12 @@ func _build_fridge(root: Node3D) -> HingedDoor:
 	_solid(root, Vector3(0.03, h, d), Vector3(w * 0.5 - 0.015, h * 0.5, 0))
 	_solid(root, Vector3(w, 0.03, d), Vector3(0, h - 0.015, 0))
 	_solid(root, Vector3(w, 0.06, d), Vector3(0, 0.03, 0))
-	for y: float in [0.6, 1.15]:
-		_solid(root, Vector3(w - 0.06, 0.02, d - 0.06), Vector3(0, y, 0))
-	# The model's front slab becomes the door; the rest is drawn double-sided so its inside shows.
-	var parts := Models.split(Models.mesh("fridge", Vector3(w, h, d)), AABB(Vector3(-w, 0.04, d * 0.5 - 0.1), Vector3(w * 2.0, h, 0.4)))
+	# Collision under every visible shelf: the model's own two and the wire rack's four.
+	for top: float in [0.281, 0.777] + FRIDGE_RACK:
+		_solid(root, Vector3(w - 0.06, 0.02, d - 0.06), Vector3(0, top - 0.01, 0))
+	# The model's front slab becomes the door (not the shelf edges just behind it); the rest is
+	# drawn double-sided so its inside shows.
+	var parts := Models.split(Models.mesh("fridge", Vector3(w, h, d)), AABB(Vector3(-w, 0.04, d * 0.5 - 0.05), Vector3(w * 2.0, h, 0.4)))
 	var body := MeshInstance3D.new()
 	body.mesh = Models.double_sided(parts[0])
 	root.add_child(body)
@@ -478,7 +512,7 @@ func _build_fridge(root: Node3D) -> HingedDoor:
 	door.sound_pitch = 0.8
 	door.build_mesh_panel(parts[1], -hinge, true)
 	root.add_child(door)
-	milk = add_prop(SimpleProps.milk(), root.to_global(Vector3(0.1, 0.62, 0.0))) as Prop
+	milk = add_prop(SimpleProps.milk(), root.to_global(Vector3(0.1, FRIDGE_RACK[1] + 0.005, 0.0))) as Prop
 	return door
 
 
@@ -570,11 +604,11 @@ func _build_wardrobe(root: Node3D) -> Array[Vector3]:
 	# The model has two drawers at the bottom: the inside floor is on top of them.
 	_solid(root, Vector3(w, FLOOR_Y, d), Vector3(0, FLOOR_Y * 0.5, 0))
 	Models.add(root, "wardrobe", size, Vector3.ZERO, 0.0, "", "Wardrobe Door")
+	# The model's left door is modelled ajar (left out of the model): it is the right one mirrored,
+	# so both doors are the same size.
+	var right := Models.mesh("wardrobe", size, "Wardrobe Door Right")
 	for side: float in [-1.0, 1.0]:
-		var part := "Wardrobe Door Left" if side < 0.0 else "Wardrobe Door Right"
-		var mesh := Models.mesh("wardrobe", size, part)
-		if side < 0.0:  # the model's left door is modelled ajar: close it about its hinge
-			mesh = Models.straighten(mesh, Vector3(mesh.get_aabb().position.x, 0.0, mesh.get_aabb().position.z))
+		var mesh := Models.mirrored_x(right) if side < 0.0 else right
 		var box := mesh.get_aabb()
 		var hinge := Vector3(box.position.x if side < 0.0 else box.end.x, 0.0, box.get_center().z)
 		var door := HingedDoor.new()
@@ -603,17 +637,16 @@ func _build_dresser(parent: Node3D, pos: Vector3, yaw: float, vase_color: Color)
 	_solid(root, Vector3(0.03, h, d), Vector3(-w * 0.5 + 0.015, h * 0.5, 0))
 	_solid(root, Vector3(0.03, h, d), Vector3(w * 0.5 - 0.015, h * 0.5, 0))
 	_solid(root, Vector3(w + 0.04, 0.03, d + 0.02), Vector3(0, h - 0.015, 0.01))
-	_solid(root, Vector3(w, 0.06, d), Vector3(0, 0.03, 0))
-	# Old cream paint; the drawer fronts are cut out of the model along the three slots.
+	_solid(root, Vector3(w, 0.025, d), Vector3(0, 0.0125, 0))
+	# Old cream paint; the drawer fronts are cut out of the model: only the triangles lying wholly
+	# within a front panel move (the frame strips running past it stay put).
 	var model := Models.mesh("dresser", Vector3(w, h, d), "", Vector3.ZERO, "", DRESSER_TINT)
-	var slot := (h - 0.09) / 3.0
 	var depth := 0.38
-	for i in 3:
-		var y0 := 0.06 + slot * i
-		var parts := Models.split(model, AABB(Vector3(-w * 0.5 + 0.035, y0 + 0.005, d * 0.5 - 0.08), Vector3(w - 0.07, slot - 0.01, 0.3)))
+	for slot in DRESSER_DRAWERS:
+		var parts := Models.split(model, AABB(Vector3(-w * 0.5 + 0.03, slot.x, d * 0.5 - 0.06), Vector3(w - 0.06, slot.y - slot.x, 0.05)), true)
 		model = parts[0]
-		var drawer_pos := Vector3(0, y0 + slot * 0.5, d * 0.5 - depth * 0.5)
-		var drawer := Drawer.create(w - 0.08, slot - 0.02, depth, parts[1], -drawer_pos)
+		var drawer_pos := Vector3(0, (slot.x + slot.y) * 0.5, d * 0.5 - depth * 0.5)
+		var drawer := Drawer.create(w - 0.08, slot.y - slot.x - 0.01, depth, parts[1], -drawer_pos)
 		drawer.position = drawer_pos
 		root.add_child(drawer)
 		key_spots.append(drawer.content)
@@ -640,9 +673,10 @@ func _build_lamp(root: Node3D, pos: Vector3) -> void:
 
 
 func _build_toy_box(root: Node3D) -> ItemZone:
-	var w := 0.7
-	var d := 0.5
-	var h := 0.4
+	# Roomy enough for all seven toys, the teddy included.
+	var w := 1.0
+	var d := 0.7
+	var h := 0.45
 	_solid(root, Vector3(w, 0.03, d), Vector3(0, 0.015, 0))
 	_solid(root, Vector3(w, h, 0.03), Vector3(0, h * 0.5, -d * 0.5 + 0.015))
 	_solid(root, Vector3(w, h, 0.03), Vector3(0, h * 0.5, d * 0.5 - 0.015))

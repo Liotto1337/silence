@@ -4,6 +4,8 @@ extends Node3D
 const MonsterScene := preload("res://scenes/monster/monster.tscn")
 const AMBIENT_DELAY := Vector2(25.0, 60.0)  ## seconds between random creepy sounds at night
 const AMBIENT_FIRST_DELAY := Vector2(12.0, 25.0)
+const COLD_LIMIT := 30.0  ## seconds in the vent ducts at night before the cold kills
+const COLD_RECOVERY := 2.0  ## out of the ducts the player warms up this many times faster
 
 var phase: GameState.Phase = GameState.Phase.MORNING
 var monster: Monster
@@ -11,12 +13,16 @@ var quests: Quests
 var _busy: bool = false  # a fade / transition is running
 var _ambient_timer: float = 0.0
 var _room_tone: AudioStreamPlayer
+## Seconds of cold built up in the ducts at night (death at COLD_LIMIT).
+var cold: float = 0.0
+var _cold_warned: bool = false
 
 @onready var house: House = $House
 @onready var player: Player = $Player
 @onready var hud: Hud = $HUD
 @onready var pause_menu: PauseMenu = $PauseMenu
 @onready var world_env: WorldEnvironment = $WorldEnvironment
+@onready var cold_overlay: ColdOverlay = $ColdOverlay
 
 
 func _ready() -> void:
@@ -55,10 +61,26 @@ func _unhandled_input(event: InputEvent) -> void:
 func _process(delta: float) -> void:
 	if phase != GameState.Phase.NIGHT or _busy:
 		return
+	_update_cold(delta)
 	_ambient_timer -= delta
 	if _ambient_timer <= 0.0:
 		_ambient_timer = randf_range(AMBIENT_DELAY.x, AMBIENT_DELAY.y)
 		play_ambient()
+
+
+## At night an icy draught blows through the vent ducts: staying in them adds up, getting out
+## warms the player back up. Frost on the screen shows how close it is.
+func _update_cold(delta: float) -> void:
+	if house.is_in_duct(player.global_position):
+		if not _cold_warned:
+			_cold_warned = true
+			hud.show_message("В коробе ледяной сквозняк. Долго здесь не выдержать.", 4.0)
+		cold += delta
+	else:
+		cold = maxf(cold - delta * COLD_RECOVERY, 0.0)
+	cold_overlay.set_cold(cold / COLD_LIMIT)
+	if cold >= COLD_LIMIT:
+		_on_frozen()
 
 
 ## A random creepy sound from somewhere a few metres away (pure atmosphere: the monster ignores it).
@@ -152,6 +174,18 @@ func _on_caught() -> void:
 	player.set_controls_enabled(false)
 	await hud.fade_to(1.0, 0.5).finished
 	pause_menu.show_end("Тебя поймали", "Монстр нашёл тебя. Шуми меньше, прячься в вентиляции.", [
+		["Попробовать снова", GameState.start_game.bind(GameState.Phase.NIGHT)],
+		["В главное меню", GameState.go_to_menu],
+	])
+
+
+func _on_frozen() -> void:
+	if _busy:
+		return
+	_busy = true
+	player.set_controls_enabled(false)
+	await hud.fade_to(1.0, 1.0).finished
+	pause_menu.show_end("Ты замёрз", "В вентиляции ночью ледяной холод: больше 30 секунд там не выжить.", [
 		["Попробовать снова", GameState.start_game.bind(GameState.Phase.NIGHT)],
 		["В главное меню", GameState.go_to_menu],
 	])

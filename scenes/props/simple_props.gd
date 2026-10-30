@@ -19,6 +19,6 @@ static func milk() -> Prop:
 	p.add_to_group(&"milk")
 	p.mass = 1.0
 	p.add_box_shape(Vector3(0.1, 0.22, 0.1), Vector3(0, 0.11, 0))
-	p.add_model("milk", Vector3(0.1, 0.28, 0.1))
+	p.add_model("milk", Vector3(0.1, 0.22, 0.1))  # fits between the fridge shelves
 	return p
 

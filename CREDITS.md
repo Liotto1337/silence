@@ -29,7 +29,7 @@
 | [Ceiling light](https://sketchfab.com/3d-models/ceiling-light-014e13eb478442e3b99708907d676819) | seven.four | CC BY 4.0 | `ceiling_light.glb` |
 | [Cruciflakes - A healthy breakfast choice!](https://sketchfab.com/3d-models/cruciflakes-a-healthy-breakfast-choice-f69948c175874bc994175a2bb55b4236) | Headspce | CC BY 4.0 | `cereal.glb` |
 | [PSX Dining Chair](https://sketchfab.com/3d-models/psx-dining-chair-0bb66e8ddd824588b2a799b30ee9da85) | Tomitos_ | CC BY 4.0 | `chair.glb` |
-| [PSX CRT TV](https://sketchfab.com/3d-models/psx-crt-tv-14c4034011ff4faebd99de03c7ab1635) | Tomitos_ | CC BY 4.0 | `crt_tv.glb` |
+| [PSX CRT TV](https://sketchfab.com/3d-models/psx-crt-tv-14c4034011ff4faebd99de03c7ab1635) | Tomitos_ | CC BY 4.0 | `crt_tv.glb` (телевизор и пульт из того же набора) |
 | [Low-Poly PSX Style Essential Doors Pack](https://sketchfab.com/3d-models/low-poly-psx-style-essential-doors-pack-20d55059056044b885a5267c2de1ec18) | vanillao03 | CC BY 4.0 | `doors_essential.glb` |
 | [Low-Poly PSX Style Front Doors Pack](https://sketchfab.com/3d-models/low-poly-psx-style-front-doors-pack-ee7d5c6d36404849a459c84c3d004a0c) | vanillao03 | CC BY 4.0 | `doors_front.glb` |
 | [Low-Poly PSX Style Wooden Interior Doors Pack](https://sketchfab.com/3d-models/low-poly-psx-style-wooden-interior-doors-pack-02e442c6d4a24df29624808d058f010a) | vanillao03 | CC BY 4.0 | `doors_interior.glb` |
@@ -41,7 +41,6 @@
 | [psx old metal shelf](https://sketchfab.com/3d-models/psx-old-metal-shelf-f07241b5d17641bfbb88b91d7c578a97) | BrainsickGames | CC BY 4.0 | `metal_shelf.glb` |
 | [psx milk carton](https://sketchfab.com/3d-models/psx-milk-carton-df77cc08e273466f8bbdf67b89137770) | BrainsickGames | CC BY 4.0 | `milk.glb` |
 | [PC Fan](https://sketchfab.com/3d-models/pc-fan-e94fb2544e144d1cb9a837c1b1bc5d5e) | TymonG | CC BY 4.0 | `pc_fan.glb` |
-| [TV Remote - (PSX)](https://sketchfab.com/3d-models/tv-remote-psx-45614f5349284065b517f71e2155f466) | Kasugay | CC BY 4.0 | `remote.glb` |
 | [Low-Poly PSX Style Vintage Rugs Pack](https://sketchfab.com/3d-models/low-poly-psx-style-vintage-rugs-pack-90e8651994e54ea2ab6afa442962595e) | vanillao03 | CC BY 4.0 | `rugs.glb` |
 | [Bathroom Sink | Low-Poly | Game-Ready](https://sketchfab.com/3d-models/bathroom-sink-low-poly-game-ready-45a6ab5e5a1a40b8913ab14314734ce8) | keam.wf | CC BY 4.0 | `sink.glb` |
 | [low-poly psx sofa](https://sketchfab.com/3d-models/low-poly-psx-sofa-8d270888422b4ba296dd23ff2f4cfd8f) | vanillao03 | CC BY 4.0 | `sofa.glb` |
@@ -76,9 +75,6 @@
 | [Eerie Dark Drone Soundscape](https://freesound.org/people/Werra/sounds/249985/) | Werra | CC0 | amb_electric_wave.ogg |
 | [big thud2.wav](https://freesound.org/people/Reitanna/sounds/332668/) | Reitanna | CC0 | impact_thud.wav |
 | [Industrial Factory/Fans Loop](https://freesound.org/people/IanStarGem/sounds/271096/) | IanStarGem | CC0 | fan_hum.wav |
-| [Panting.MP3](https://freesound.org/people/SoundsForHim/sounds/395563/) | SoundsForHim | CC0 | breath.wav |
-| [Gasp Inhale](https://freesound.org/people/u3190/sounds/169931/) | u3190 | CC0 | breath_recover.wav |
-| [Frog.ogg](https://freesound.org/people/egomassive/sounds/536759/) | egomassive | CC0 | goal.wav |
 | [Plastic Bouncing Ball.wav](https://freesound.org/people/Uzbazur/sounds/329684/) | Uzbazur | CC0 | ball_bounce_1.wav … ball_bounce_3.wav (3 шт.) |
 | [Item Falling (Plastic).mp3](https://freesound.org/people/EchoCinematics/sounds/133978/) | EchoCinematics | CC0 | plastic_1.wav, plastic_2.wav |
 | [wood impact 01.wav](https://freesound.org/people/kwahmah_02/sounds/245290/) | kwahmah_02 | CC BY 3.0 | wood_block.wav |
@@ -105,4 +101,4 @@
 
 ## Старые записи
 
-`assets/source/` — исходники звуков из версий до 0.5. Игра их больше не использует, их источники и лицензии не проверялись.
+`assets/source/` — исходники звуков из версий до 0.5, их источники и лицензии не проверялись. Из них в игре остались три звука 0.4: одышка `breath.wav` и вдох при восстановлении `breath_recover.wav` (из `female-breathes-with-a-light-shiver-at-the-end.mp3`) и квак выполнения цели `goal.wav` (из `3-positive-and-optimistic-frog-sounds-to-get-the-sound-of-game-props.mp3`).
