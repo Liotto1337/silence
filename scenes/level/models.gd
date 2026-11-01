@@ -29,7 +29,7 @@ const DEFS := {
 	"crate": ["barrels_boxes", "/Crate/", 0.0],
 	"fridge": ["fridge", "", 0.0],
 	"kitchen_counter": ["kitchen_cabinets", "", -PI * 0.5],
-	"stove": ["stove", "", 0.0],
+	"stove": ["stove", "", PI * 0.5],  # the model's knobs and oven door look along -X
 	"bathtub": ["bathtub", "", 0.0],
 	"toilet": ["toilet", "", PI * 0.5],
 	"sink": ["sink", "", 0.0],
@@ -101,6 +101,15 @@ static func mesh(id: String, size: Vector3, part: String = "", pivot: Vector3 = 
 		out.surface_set_material(out.get_surface_count() - 1, _ps1(s["material"], tint))
 	_meshes[key] = out
 	return out
+
+
+## The albedo texture of a model's first textured material (the atlas the model is painted with).
+static func albedo(id: String) -> Texture2D:
+	for s: Dictionary in _load(id)["surfaces"]:
+		var sm := s["material"] as BaseMaterial3D
+		if sm and sm.albedo_texture:
+			return sm.albedo_texture
+	return Lowpoly.white_texture()
 
 
 ## Bounding box of a part after fitting the whole model to `size` (to place hinges, drawers...).

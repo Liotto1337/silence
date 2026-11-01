@@ -51,9 +51,14 @@ const SHELF_BOARDS: Array[float] = [0.195, 0.73, 1.265, 1.8]
 const FRIDGE_RACK: Array[float] = [0.181, 0.514, 0.847, 1.18]
 const RUG_Y := 0.004  ## rugs float a few mm above the floor: some have a curled corner, the flat rest would z-fight
 const FLOOR_Y := 0.6  ## wardrobe: height of the inside floor (the model has drawers below it)
+const SOFA_ARM_H := 0.67  ## the sofa model's arm cushions
+const SOFA_BACK_H := 0.95  ## the top of its back cushions
 const DRESSER_TINT := Color(0.78, 0.7, 0.6)  ## aged cream paint on the dresser model
 ## Bottom and top of the dresser model's three drawer fronts (at its 0.8 m height).
 const DRESSER_DRAWERS: Array[Vector2] = [Vector2(0.027, 0.256), Vector2(0.272, 0.501), Vector2(0.514, 0.743)]
+## The model's own drawer boxes: front face at z = 0.192 (the knob sticks out to 0.225), 0.404 deep.
+const DRESSER_FRONT_Z := 0.192
+const DRESSER_DRAWER_DEPTH := 0.4
 const C_WALL := Color("b7a48a")
 const C_WALL_TRIM := Color("8c7a62")
 
@@ -233,6 +238,8 @@ func _vent_grate(parent: Node3D, pos: Vector3, yaw: float) -> void:
 	grate.rotation = Vector3(-0.2, yaw, 0.0)
 	parent.add_child(grate)
 	Models.add(grate, "vent_cover", Vector3(VENT_W - 0.05, VENT_H - 0.05, 0.03))
+	# Solid like the model (it leans with the node, so the box leans too).
+	_solid(grate, Vector3(VENT_W - 0.05, VENT_H - 0.05, 0.05), Vector3(0, (VENT_H - 0.05) * 0.5, 0))
 
 
 # --- vent ducts -------------------------------------------------------------
@@ -488,9 +495,9 @@ func _build_fridge(root: Node3D) -> HingedDoor:
 		_solid(root, Vector3(w - 0.06, 0.02, d - 0.06), Vector3(0, top - 0.01, 0))
 	# The model's front slab becomes the door (not the shelf edges just behind it); the rest is
 	# drawn double-sided so its inside shows.
-	var parts := Models.split(Models.mesh("fridge", Vector3(w, h, d)), AABB(Vector3(-w, 0.04, d * 0.5 - 0.05), Vector3(w * 2.0, h, 0.4)))
+	var parts := Models.split(Models.mesh("fridge", Vector3(w, h, d)), AABB(Vector3(-w, -0.1, d * 0.5 - 0.05), Vector3(w * 2.0, h + 0.2, 0.4)))
 	var body := MeshInstance3D.new()
-	body.mesh = Models.double_sided(parts[0])
+	body.mesh = Models.double_sided(_lift_back(parts[0], -d * 0.5, 0.012))
 	root.add_child(body)
 	# Wire racks inside (the shelf model fitted to the inner space).
 	Models.add(root, "metal_shelf", Vector3(w - 0.08, 1.15 - 0.03, d - 0.1), Vector3(0, 0.06, -0.02))
@@ -510,10 +517,28 @@ func _build_fridge(root: Node3D) -> HingedDoor:
 	door.open_sound = Sfx.CABINET_OPEN
 	door.close_sound = Sfx.CABINET_CLOSE
 	door.sound_pitch = 0.8
-	door.build_mesh_panel(parts[1], -hinge, true)
+	# Double-sided too: the model's upper door has no back face, so from the side the door swings
+	# towards (the player's, standing in front of the open fridge) its top half wasn't drawn.
+	door.build_mesh_panel(Models.double_sided(parts[1]), -hinge, true)
 	root.add_child(door)
 	milk = add_prop(SimpleProps.milk(), root.to_global(Vector3(0.1, FRIDGE_RACK[1] + 0.005, 0.0))) as Prop
 	return door
+
+
+## Moves the vertices lying on the back plane z = `back` forward by `by`, so the fridge's back panel
+## is no longer coplanar with the wall behind it (z-fighting: shimmering while walking, wall showing through).
+func _lift_back(src: ArrayMesh, back: float, by: float) -> ArrayMesh:
+	var out := ArrayMesh.new()
+	for si in src.get_surface_count():
+		var arrays := src.surface_get_arrays(si)
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		for i in verts.size():
+			if verts[i].z < back + 0.002:
+				verts[i].z += by
+		arrays[Mesh.ARRAY_VERTEX] = verts
+		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+		out.surface_set_material(si, src.surface_get_material(si))
+	return out
 
 
 func _build_table(root: Node3D, size: Vector3) -> void:
@@ -538,7 +563,9 @@ func _build_bowl(pos: Vector3) -> void:
 	bowl.name = "Bowl"
 	bowl.position = pos
 	bowl.collision_layer = Prop.LAYER_WORLD
-	Models.add(bowl, "bowl", Vector3(0.26, 0.07, 0.26))
+	var mi := MeshInstance3D.new()
+	mi.mesh = _bowl_mesh(false)
+	bowl.add_child(mi)
 	var cs := CollisionShape3D.new()
 	var shape := CylinderShape3D.new()
 	shape.radius = 0.12
@@ -556,7 +583,33 @@ func _build_bowl(pos: Vector3) -> void:
 func fill_bowl() -> void:
 	for c in bowl.get_children():
 		if c is MeshInstance3D:
-			(c as MeshInstance3D).mesh = Models.mesh("bowl_full", Vector3(0.26, 0.11, 0.26), "", Vector3.ZERO, "", Color(1.0, 0.95, 0.8))
+			(c as MeshInstance3D).mesh = _bowl_mesh(true)
+
+
+## One bowl model for both states, so the shape and colour never change when it is filled. The model's
+## milk surface (UVs in the left part of the atlas, clear of the bowl walls and the spoon) is the
+## bowl's floor: in the empty bowl it is sunk to the bottom and painted with the bowl's glaze.
+func _bowl_mesh(filled: bool) -> ArrayMesh:
+	var full := Models.mesh("bowl_full", Vector3(0.26, 0.11, 0.26))
+	if filled:
+		return full
+	var out := ArrayMesh.new()
+	for si in full.get_surface_count():
+		var arrays := full.surface_get_arrays(si)
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
+		for i in verts.size():
+			if uvs[i].y > 0.32 and uvs[i].x < 0.85:
+				# sink it to the bottom and narrow it to the bowl's radius there (0.068 of 0.113)
+				verts[i].x = -0.006 + (verts[i].x + 0.006) * 0.6
+				verts[i].z *= 0.6
+				verts[i].y = 0.003
+				uvs[i] = Vector2(0.293, 0.23)  # the plain glaze disc of the atlas
+		arrays[Mesh.ARRAY_VERTEX] = verts
+		arrays[Mesh.ARRAY_TEX_UV] = uvs
+		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+		out.surface_set_material(out.get_surface_count() - 1, full.surface_get_material(si))
+	return out
 
 
 ## Bed with the long side along local X and the open side (where you can reach under) at +Z.
@@ -573,8 +626,16 @@ func _build_bed(root: Node3D, size: Vector3, model: String, bed: Bed = null) -> 
 	Lowpoly.add_box_shape(mattress, Vector3(l, 0.25, w), Vector3(0, gap + 0.125, 0))
 	# Skirts on the back, head and foot so the gap is reachable only from the open side.
 	_solid(root, Vector3(l, gap, 0.04), Vector3(0, gap * 0.5, -w * 0.5 + 0.02))
-	_solid(root, Vector3(0.06, 0.95, w), Vector3(-l * 0.5 - 0.03, 0.475, 0))
-	_solid(root, Vector3(0.06, 0.5, w), Vector3(l * 0.5 + 0.03, 0.25, 0))
+	var head_h := 0.95
+	var foot_h := 0.5
+	if model == "sofa":
+		# The sofa's arms are 0.67 m cushions, and its back is a row of tall cushions on top of the
+		# seat (z from the back edge to 0.46 m in front of it).
+		head_h = SOFA_ARM_H
+		foot_h = SOFA_ARM_H
+		_solid(root, Vector3(l, SOFA_BACK_H - (gap + 0.25), 0.46), Vector3(0, (gap + 0.25 + SOFA_BACK_H) * 0.5, -w * 0.5 + 0.23))
+	_solid(root, Vector3(0.06, head_h, w), Vector3(-l * 0.5 - 0.03, head_h * 0.5, 0))
+	_solid(root, Vector3(0.06, foot_h, w), Vector3(l * 0.5 + 0.03, foot_h * 0.5, 0))
 	_solid(root, Vector3(0.06, gap, 0.06), Vector3(l * 0.5 - 0.03, gap * 0.5, w * 0.5 - 0.03))
 	_solid(root, Vector3(0.06, gap, 0.06), Vector3(-l * 0.5 + 0.03, gap * 0.5, w * 0.5 - 0.03))
 	# The model with its base cut away under the mattress (legs and back kept), so the gap is open
@@ -638,14 +699,17 @@ func _build_dresser(parent: Node3D, pos: Vector3, yaw: float, vase_color: Color)
 	_solid(root, Vector3(0.03, h, d), Vector3(w * 0.5 - 0.015, h * 0.5, 0))
 	_solid(root, Vector3(w + 0.04, 0.03, d + 0.02), Vector3(0, h - 0.015, 0.01))
 	_solid(root, Vector3(w, 0.025, d), Vector3(0, 0.0125, 0))
-	# Old cream paint; the drawer fronts are cut out of the model: only the triangles lying wholly
-	# within a front panel move (the frame strips running past it stay put).
+	# Old cream paint. Each drawer is cut out of the model as a whole: its own box, front and knob
+	# (only triangles lying wholly inside the slot move, so the frame strips between drawers and the
+	# carcass stay put) and slides out together.
 	var model := Models.mesh("dresser", Vector3(w, h, d), "", Vector3.ZERO, "", DRESSER_TINT)
-	var depth := 0.38
+	var depth := DRESSER_DRAWER_DEPTH
+	var front_z := DRESSER_FRONT_Z
 	for slot in DRESSER_DRAWERS:
-		var parts := Models.split(model, AABB(Vector3(-w * 0.5 + 0.03, slot.x, d * 0.5 - 0.06), Vector3(w - 0.06, slot.y - slot.x, 0.05)), true)
+		var cut := AABB(Vector3(-w * 0.5 + 0.03, slot.x - 0.002, -d * 0.5), Vector3(w - 0.06, slot.y - slot.x + 0.004, d + 0.03))
+		var parts := Models.split(model, cut, true)
 		model = parts[0]
-		var drawer_pos := Vector3(0, (slot.x + slot.y) * 0.5, d * 0.5 - depth * 0.5)
+		var drawer_pos := Vector3(0, (slot.x + slot.y) * 0.5, front_z - depth * 0.5)
 		var drawer := Drawer.create(w - 0.08, slot.y - slot.x - 0.01, depth, parts[1], -drawer_pos)
 		drawer.position = drawer_pos
 		root.add_child(drawer)

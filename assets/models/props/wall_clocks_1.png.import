@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dkwok48njqc1x"
-path="res://.godot/imported/wall_clocks_1.png-c26876d4d92fa8f0b72144ad7904c765.ctex"
+path.s3tc="res://.godot/imported/wall_clocks_1.png-c26876d4d92fa8f0b72144ad7904c765.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "e04d9f63f3f51ff25620b911fc3d7270"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/props/wall_clocks_1.png"
-dest_files=["res://.godot/imported/wall_clocks_1.png-c26876d4d92fa8f0b72144ad7904c765.ctex"]
+dest_files=["res://.godot/imported/wall_clocks_1.png-c26876d4d92fa8f0b72144ad7904c765.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

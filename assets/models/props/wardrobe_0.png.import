@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://ccwwmya0vx6tb"
-path="res://.godot/imported/wardrobe_0.png-6b4f6f46d2c4ca68d065c3f30cf452d3.ctex"
+path.s3tc="res://.godot/imported/wardrobe_0.png-6b4f6f46d2c4ca68d065c3f30cf452d3.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "d67b66fb03f42474724048752d64d463"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/props/wardrobe_0.png"
-dest_files=["res://.godot/imported/wardrobe_0.png-6b4f6f46d2c4ca68d065c3f30cf452d3.ctex"]
+dest_files=["res://.godot/imported/wardrobe_0.png-6b4f6f46d2c4ca68d065c3f30cf452d3.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

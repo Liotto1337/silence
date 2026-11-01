@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dn5fv71fx02qy"
-path="res://.godot/imported/dresser_6.png-20f2c3e5ac1954e7d9eda5b6eab62ffb.ctex"
+path.s3tc="res://.godot/imported/dresser_6.png-20f2c3e5ac1954e7d9eda5b6eab62ffb.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "927480d9198cbd4c6f1f6e17559843a3"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/props/dresser_6.png"
-dest_files=["res://.godot/imported/dresser_6.png-20f2c3e5ac1954e7d9eda5b6eab62ffb.ctex"]
+dest_files=["res://.godot/imported/dresser_6.png-20f2c3e5ac1954e7d9eda5b6eab62ffb.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

@@ -4,6 +4,8 @@ extends AnimatableBody3D
 
 signal opened
 
+const SWEEP_STEPS := 9  ## the swing is checked for a monster in its way every ~10 degrees
+
 @export var open_angle: float = deg_to_rad(105.0)
 @export var open_prompt: String = "Открыть"
 @export var close_prompt: String = "Закрыть"
@@ -32,6 +34,9 @@ var _panel_center: Vector3
 
 
 func _ready() -> void:
+	# Moved every rendered frame, not every physics tick: with physics at 60 Hz and the screen at
+	# 144+ Hz a door synced to physics visibly stepped ("lagged") while it swung.
+	sync_to_physics = false
 	_closed_y = rotation.y
 	_swing = open_angle
 
@@ -71,13 +76,21 @@ func interact(player: Player) -> void:
 		_play_locked()
 		return
 	if is_open:
+		# Don't swing the leaf through a monster standing in the doorway (it clipped through its
+		# body / pinned it); the door just refuses to close.
+		if _close_blocked():
+			_play_locked()
+			return
 		set_open(false)
 	else:
-		open_from(player.global_position)
+		open_from(player.global_position, player)
 
 
-## Opens the door; a two-way door swings to the side away from `opener_pos`.
-func open_from(opener_pos: Vector3) -> void:
+## Opens the door; a two-way door swings to the side away from `opener_pos`. If a monster stands in
+## the way on that side (the leaf would sweep it into the wall behind the door and pin it there), it
+## swings the other way instead; blocked on both sides, it doesn't open. `opener` (the monster that
+## opens it, if any) doesn't count as being in the way.
+func open_from(opener_pos: Vector3, opener: Node = null) -> void:
 	if is_open:
 		return
 	_swing = open_angle
@@ -86,8 +99,53 @@ func open_from(opener_pos: Vector3) -> void:
 		var local := closed.affine_inverse() * opener_pos
 		# A positive angle swings a +X panel towards -Z (a mirrored one towards +Z).
 		var away := 1.0 if local.z > 0.0 else -1.0
-		_swing = absf(open_angle) * away * (-1.0 if _mirrored else 1.0)
+		var preferred := absf(open_angle) * away * (-1.0 if _mirrored else 1.0)
+		if not _sweep_blocked(preferred, opener):
+			_swing = preferred
+		elif not _sweep_blocked(-preferred, opener):
+			_swing = -preferred
+		else:
+			_play_locked()
+			return
 	set_open(true)
+
+
+## True if a monster (other than `opener`) stands where the leaf would pass while swinging by `angle`.
+func _sweep_blocked(angle: float, opener: Node) -> bool:
+	return _sweep_range_blocked(0.0, angle, opener)
+
+
+## True if a monster stands where the leaf would pass while closing from its open angle to the frame
+## (the closed position included, so a monster in the doorway counts).
+func _close_blocked() -> bool:
+	return _sweep_range_blocked(_swing, 0.0, null)
+
+
+## `_sweep_blocked` for a swing from angle `from` to angle `to` (relative to the closed position).
+func _sweep_range_blocked(from: float, to: float, opener: Node) -> bool:
+	var box_node: CollisionShape3D
+	for c in get_children():
+		if c is CollisionShape3D:
+			box_node = c
+			break
+	if box_node == null or not box_node.shape is BoxShape3D or not is_inside_tree():
+		return false
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.shape = box_node.shape
+	query.collision_mask = Prop.LAYER_MONSTER
+	query.exclude = [get_rid()]
+	var closed := get_parent_node_3d().global_transform * Transform3D(Basis(Vector3.UP, _closed_y), position)
+	var space := get_world_3d().direct_space_state
+	for i in range(1, SWEEP_STEPS + 1):
+		query.transform = closed * Transform3D(Basis(Vector3.UP, lerpf(from, to, i / float(SWEEP_STEPS))), Vector3.ZERO) * box_node.transform
+		for hit in space.intersect_shape(query, 8):
+			var body := hit.collider as Node
+			# (The head hitbox pokes through the door; only the body can be pinned.)
+			if body == null or body.name == &"HeadHitbox":
+				continue
+			if not (opener and (body == opener or opener.is_ancestor_of(body))):
+				return true
+	return false
 
 
 func set_open(value: bool) -> void:
@@ -96,7 +154,7 @@ func set_open(value: bool) -> void:
 	is_open = value
 	if _tween:
 		_tween.kill()
-	_tween = create_tween().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
+	_tween = create_tween()
 	_tween.tween_property(self, "rotation:y", _closed_y + (_swing if is_open else 0.0), open_time if is_open else close_time) \
 			.set_trans(Tween.TRANS_SINE).set_ease(open_ease if is_open else close_ease)
 	var sound := open_sound if is_open else close_sound

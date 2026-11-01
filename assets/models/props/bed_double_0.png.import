@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://burigln2kqndk"
-path="res://.godot/imported/bed_double_0.png-339c26eddb72f4eda18fdb86e0c4d897.ctex"
+path.s3tc="res://.godot/imported/bed_double_0.png-339c26eddb72f4eda18fdb86e0c4d897.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "8fe5fc9abe6a90b279df187ffe170bf2"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/props/bed_double_0.png"
-dest_files=["res://.godot/imported/bed_double_0.png-339c26eddb72f4eda18fdb86e0c4d897.ctex"]
+dest_files=["res://.godot/imported/bed_double_0.png-339c26eddb72f4eda18fdb86e0c4d897.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

@@ -21,14 +21,21 @@ const BLEND := 0.25
 const FOOT_BONES: Array[String] = ["Foot.L_054", "Foot.R_058"]
 const TOE_BONES: Array[String] = ["Toe.L_end_071", "Toe.R_end_074"]
 const ATTACKS: Array[String] = ["attack_1", "attack_2", "attack_3", "bite"]
+const HEAD_BONE := "Head_015"
+const HEAD_RADIUS := 0.32  ## the head mesh is about 0.38 x 0.47 x 0.37 m
+const HEAD_CENTER := Vector3(0.0, 0.18, 0.0)  ## the middle of the head mesh, in the head bone's space
 
 var move_speed: float = 0.0
 var pose: Pose = Pose.NORMAL
+## How long the aggro roar lasts (the scream sound): the roar clip is stretched to this.
+var aggro_time: float = 3.0
 var head_yaw: float = 0.0  ## where the monster is looking, relative to its body (radians)
 
 var _anim: AnimationPlayer
 var _skeleton: Skeleton3D
 var _head: HeadLook
+var _head_bone_id: int = -1
+var _head_body: AnimatableBody3D
 var _current: String = ""
 var _last_pose: Pose = Pose.NORMAL
 var _foot_ids: Array[int] = []
@@ -53,13 +60,46 @@ func _ready() -> void:
 		_foot_ids.append(_skeleton.find_bone(b))
 	_head = HeadLook.new()
 	_skeleton.add_child(_head)
+	_head_bone_id = _skeleton.find_bone(HEAD_BONE)
+	_build_head_hitbox()
 	_play("idle")
 
 
+## The hunched model carries its head about 0.9 m in front of the body capsule and up to 2.4 m high,
+## so the head gets a solid of its own that follows the head bone: you can't walk into the head,
+## and the monster catches by it. (Kept out of the scaled model, so the shape keeps its size.)
+func _build_head_hitbox() -> void:
+	_head_body = AnimatableBody3D.new()
+	_head_body.name = "HeadHitbox"
+	_head_body.collision_layer = Prop.LAYER_MONSTER
+	_head_body.collision_mask = 0
+	var shape := SphereShape3D.new()
+	shape.radius = HEAD_RADIUS
+	var cs := CollisionShape3D.new()
+	cs.shape = shape
+	_head_body.add_child(cs)
+	add_child(_head_body)
+	_update_head_hitbox()
+
+
+func _update_head_hitbox() -> void:
+	if _head_body == null or _head_bone_id < 0:
+		return
+	var bone := _skeleton.global_transform * _skeleton.get_bone_global_pose(_head_bone_id)
+	_head_body.global_position = bone * HEAD_CENTER
+
+
+## World position of the middle of the head (where the hitbox is).
+func head_position() -> Vector3:
+	_update_head_hitbox()
+	return _head_body.global_position
+
+
 func _physics_process(delta: float) -> void:
+	_update_head_hitbox()
 	_head.yaw = head_yaw
 	var clip := _pick_clip()
-	if clip != _current or (pose != _last_pose and pose in [Pose.ROAR, Pose.ATTACK]):
+	if clip != _current or (pose != _last_pose and pose in [Pose.ROAR, Pose.ALERT, Pose.ATTACK]):
 		_play(clip)
 	_last_pose = pose
 	match _current:
@@ -67,6 +107,9 @@ func _physics_process(delta: float) -> void:
 			_anim.speed_scale = clampf(move_speed / WALK_REF_SPEED, 0.6, 1.6)
 		"Run":
 			_anim.speed_scale = clampf(move_speed / RUN_REF_SPEED, 0.7, 1.4)
+		"roar":
+			# The whole roar clip lasts as long as the scream sound.
+			_anim.speed_scale = _anim.get_animation(_clip("roar")).length / maxf(aggro_time, 0.1)
 		_:
 			_anim.speed_scale = 1.0
 	if _current == "walk" or _current == "Run":
@@ -89,10 +132,8 @@ func _pick_clip() -> String:
 	match pose:
 		Pose.ATTACK:
 			return _current if _current in ATTACKS else ATTACKS[0]
-		Pose.ROAR:
-			return "roar"
-		Pose.ALERT:
-			return "battle_idle"
+		Pose.ROAR, Pose.ALERT:
+			return "roar"  # spotting you and starting a hunt are the same scream
 	if move_speed >= RUN_MIN_SPEED:
 		return "Run"
 	if move_speed >= WALK_MIN_SPEED:

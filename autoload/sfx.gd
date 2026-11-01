@@ -47,6 +47,10 @@ const MONSTER_GROWLS: Array[AudioStream] = [
 	preload("res://assets/sounds/monster_growl_1.ogg"),
 	preload("res://assets/sounds/monster_growl_2.ogg"),
 ]
+const BED_CREAKS: Array[AudioStream] = [
+	preload("res://assets/sounds/creak_1.ogg"),
+	preload("res://assets/sounds/creak_2.ogg"),
+]
 const THUD := preload("res://assets/sounds/impact_thud.wav")
 const FAN_HUM := preload("res://assets/sounds/fan_hum.wav")
 const BREATH := preload("res://assets/sounds/breath.wav")

@@ -7,9 +7,9 @@ extends CharacterBody3D
 ##          to the source and fills patience.
 ## HUNT   — patience full (2 loud noises): roars across the house, gets the player's position,
 ##          moves faster.
-## CHASE  — player in line of sight: turns to face the player and freezes for a second, then runs
-##          (a bit slower than the player's sprint); for the first 5 s of the run it gets the
-##          player's position every second even without sight.
+## CHASE  — player in line of sight: turns to face the player and roars for the length of the scream
+##          (3 s, standing still), then runs (a bit slower than the player's sprint); for the first
+##          5 s of the run it gets the player's position every second even without sight.
 ##
 ## Vision follows the head: while looking around a room the head sweeps and the sight cone with it.
 ## A player hiding under a bed is invisible to it, unless it saw them crawl in.
@@ -23,13 +23,16 @@ enum State { SEARCH, HUNT, CHASE }
 const PATROL_SPEED := 1.3
 const INVESTIGATE_SPEED := 1.8
 const SWEEP_SPEED := 1.5
-const HUNT_SPEED := 3.3
-const CHASE_SPEED := 4.3  ## the player's sprint (5.0) is faster, but stamina runs out
+const HUNT_SPEED := 3.9
+const CHASE_SPEED := 4.5  ## as fast as the player's sprint (4.5), and stamina runs out in ~3 s
 const TURN_SPEED := 6.0
 const ALERT_TURN_SPEED := 14.0
 
-const ALERT_TIME := 1.0  ## spotted the player: faces them and freezes before the chase
-const ROAR_TIME := 1.6  ## hunt start: roars on the spot before running
+## The aggro scream (monster_roar.ogg) is 3.6 s long and its last 0.6 s is a fade-out: the monster
+## stands and roars for the scream (the roar clip is stretched to it), then runs.
+const AGGRO_TIME := 3.0
+const ALERT_TIME := AGGRO_TIME  ## spotted the player: faces them and roars before the chase
+const ROAR_TIME := AGGRO_TIME  ## hunt start: roars on the spot before running
 
 ## How long it stands looking around after reaching a point (seconds).
 const LOOK_TIME_PATROL := Vector2(3.5, 6.0)
@@ -53,10 +56,13 @@ const SIGHT_RANGE_DARK := 5.0
 const CROUCH_SIGHT_FACTOR := 0.65
 const PROXIMITY_SENSE := 1.6
 const CATCH_DISTANCE := 1.05
+const HEAD_CATCH_DISTANCE := 0.85  ## from the head's hitbox to the player (flat)
+const HEAD_MAX_REACH := 1.9  ## how far ahead of the body the head can be (it is ~1.0-1.5 m)
 const HIDDEN_CATCH_DISTANCE := 1.3  ## from the bed's open side: pulls out a player it saw hide there
 const OCCLUDED_HEARING := 0.55
 const EYE_HEIGHT := 2.2
 const STUCK_TIME := 2.5
+const DOOR_PIN_TIME := 1.0  ## held up this long against an open door: it shuts the door
 const DOOR_REACH := 1.0  ## opens a door this far ahead (plus the distance covered while it swings)
 const SIGHT_MASK := Prop.LAYER_WORLD | Prop.LAYER_DOORS
 
@@ -86,6 +92,9 @@ var _head_yaw: float = 0.0
 var _scan_yaw: float = 0.0
 var _scan_timer: float = 0.0
 var _stuck_timer: float = 0.0
+var _touched_door: WeakRef  ## the last door the body ran into, and when
+var _touched_door_time: float = 0.0
+var _leaf_overlap_timer: float = 0.0  ## how long it has stood with an open door leaf through its body
 var _last_patrol: int = -1
 var _sees_player: bool = false
 var _saw_hide: bool = false  # watched the player crawl under the bed they're hiding under
@@ -478,6 +487,7 @@ func _move(delta: float) -> void:
 	if desired.length() > 0.1:
 		_open_doors_ahead(desired)
 	move_and_slide()
+	_open_doors_touched()
 	_push_props()
 	_update_stuck(delta, desired)
 
@@ -490,7 +500,20 @@ func _open_doors_ahead(desired: Vector3) -> void:
 	var q := PhysicsRayQueryParameters3D.create(from, from + desired.normalized() * reach, Prop.LAYER_DOORS, [get_rid()])
 	var hit := get_world_3d().direct_space_state.intersect_ray(q)
 	if hit and hit.collider is HingedDoor and not (hit.collider as HingedDoor).is_open:
-		(hit.collider as HingedDoor).open_from(global_position)
+		(hit.collider as HingedDoor).open_from(global_position, self)
+
+
+## Backup for the ray above: a closed door the body actually ran into (coming at a narrow doorway
+## at an angle the ray misses) is opened at once instead of being pushed against.
+func _open_doors_touched() -> void:
+	for i in get_slide_collision_count():
+		var door := get_slide_collision(i).get_collider() as HingedDoor
+		if door == null:
+			continue
+		_touched_door = weakref(door)
+		_touched_door_time = Time.get_ticks_msec() / 1000.0
+		if not door.is_open:
+			door.open_from(global_position, self)
 
 
 ## Looking around a room: the head sweeps to random angles and the body slowly turns after it.
@@ -530,13 +553,45 @@ func _push_props() -> void:
 func _update_stuck(delta: float, desired: Vector3) -> void:
 	if desired.length() < 0.1:
 		_stuck_timer = 0.0
+		# Standing still with an open door leaf through its body (it used to stay there for good,
+		# since the pin check below only runs while walking): shut the door to get clear of it.
+		_leaf_overlap_timer = _leaf_overlap_timer + delta if _overlapping_open_door() != null else 0.0
+		if _leaf_overlap_timer > DOOR_PIN_TIME:
+			_leaf_overlap_timer = 0.0
+			_overlapping_open_door().set_open(false)
 		return
+	_leaf_overlap_timer = 0.0
 	var real := Vector2(get_real_velocity().x, get_real_velocity().z).length()
 	_stuck_timer = _stuck_timer + delta if real < 0.25 else 0.0
+	# Pinned between a wall and an open door leaf (even mid-chase): shut the door to get out; it
+	# opens again, away from the monster, once the monster walks into it.
+	if _stuck_timer > DOOR_PIN_TIME and _touched_door and Time.get_ticks_msec() / 1000.0 - _touched_door_time < 0.5:
+		var pinning := _touched_door.get_ref() as HingedDoor
+		if pinning and pinning.is_open:
+			pinning.set_open(false)
+			_stuck_timer = 0.0
+			return
 	if _stuck_timer > STUCK_TIME and state != State.CHASE:
 		_stuck_timer = 0.0
 		_investigating = false
 		_next_target()
+
+
+## An open door whose leaf overlaps the body capsule, or null.
+func _overlapping_open_door() -> HingedDoor:
+	var shape_node := get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if shape_node == null:
+		return null
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.shape = shape_node.shape
+	query.transform = shape_node.global_transform
+	query.collision_mask = Prop.LAYER_DOORS
+	query.exclude = [get_rid()]
+	for hit in get_world_3d().direct_space_state.intersect_shape(query, 4):
+		var door := hit.collider as HingedDoor
+		if door != null and door.is_open:
+			return door
+	return null
 
 
 ## Called by the model on every heel strike, so the stomps match the walk cycle.
@@ -555,7 +610,17 @@ func _check_catch() -> void:
 		var to_bed := global_position - _player_spot()
 		caught = _saw_hide and Vector2(to_bed.x, to_bed.z).length() < HIDDEN_CATCH_DISTANCE
 	else:
-		caught = flat < CATCH_DISTANCE and absf(d.y) < 1.2 and _line_clear(_eye(), player.global_position + Vector3(0, 0.4, 0))
+		var chest := player.global_position + Vector3(0, 0.4, 0)
+		var head := model.head_position()
+		var head_flat := Vector2(head.x - player.global_position.x, head.z - player.global_position.z).length()
+		# The head is never further than ~1.7 m from the body; a bigger gap is a stale bone pose on
+		# the first frame after the monster was teleported.
+		if Vector2(head.x - global_position.x, head.z - global_position.z).length() > HEAD_MAX_REACH:
+			head_flat = INF
+		# The head hangs far ahead of the body capsule: reaching the head counts as being caught too.
+		# The line is always drawn from the body's eyes: the head pokes through doors and walls, so
+		# a line from the head would let it catch a player on the other side of a closed door.
+		caught = absf(d.y) < 1.2 and (flat < CATCH_DISTANCE or head_flat < HEAD_CATCH_DISTANCE) and _line_clear(_eye(), chest)
 	if caught:
 		active = false
 		velocity = Vector3.ZERO

@@ -4,7 +4,7 @@ extends Node3D
 const MonsterScene := preload("res://scenes/monster/monster.tscn")
 const AMBIENT_DELAY := Vector2(25.0, 60.0)  ## seconds between random creepy sounds at night
 const AMBIENT_FIRST_DELAY := Vector2(12.0, 25.0)
-const COLD_LIMIT := 30.0  ## seconds in the vent ducts at night before the cold kills
+const COLD_LIMIT := 15.0  ## seconds in the vent ducts at night before the cold kills
 const COLD_RECOVERY := 2.0  ## out of the ducts the player warms up this many times faster
 
 var phase: GameState.Phase = GameState.Phase.MORNING
@@ -53,7 +53,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		GameState.debug_overlay = not GameState.debug_overlay
 	elif event.is_action_pressed(&"debug_skip_morning") and OS.is_debug_build() and phase == GameState.Phase.MORNING and not _busy:
 		quests.complete_morning_instantly()
-		_go_to_night()
+		_go_to_night(false)
 	elif event is InputEventMouseButton and event.pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and not get_tree().paused:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -137,12 +137,20 @@ func _start_night() -> void:
 	hud.show_message("Что-то ходит по дому. Найди ключ и выберись. Тихо.", 5.0)
 
 
-func _go_to_night() -> void:
+## Morning -> night. `animated`: the player sits down on the bed, lies back, pulls the blanket up and
+## shuts their eyes (a plain fade without it, for the debug skip).
+func _go_to_night(animated: bool = true) -> void:
 	_busy = true
 	player.set_controls_enabled(false)
-	await hud.fade_to(1.0, 1.2).finished
-	hud.show_title("Ночь")
 	hud.set_gameplay_visible(false)
+	if animated:
+		await player.fall_asleep(house.hero_bed, hud)
+		await hud.fade_to(1.0, 0.4).finished
+	else:
+		await hud.fade_to(1.0, 1.2).finished
+	hud.show_title("Ночь")
+	player.finish_sleep()
+	hud.open_eyes()
 	_start_night()
 	await get_tree().create_timer(2.0).timeout
 	hud.show_title("")
@@ -185,7 +193,7 @@ func _on_frozen() -> void:
 	_busy = true
 	player.set_controls_enabled(false)
 	await hud.fade_to(1.0, 1.0).finished
-	pause_menu.show_end("Ты замёрз", "В вентиляции ночью ледяной холод: больше 30 секунд там не выжить.", [
+	pause_menu.show_end("Ты замёрз", "В вентиляции ночью ледяной холод: больше 15 секунд там не выжить.", [
 		["Попробовать снова", GameState.start_game.bind(GameState.Phase.NIGHT)],
 		["В главное меню", GameState.go_to_menu],
 	])

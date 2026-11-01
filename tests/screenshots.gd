@@ -3,21 +3,24 @@ extends Node
 ## Output dir: env SHOT_DIR. Optional env SHOT_ONLY: comma-separated view names to render (faster).
 
 const VIEWS_MORNING := [
-	["m_hero_room", Vector3(7.2, 1.62, 4.3), Vector3(2.0, 0.6, 1.5)],
+	["m_hero_room", Vector3(7.2, 1.47, 4.3), Vector3(2.0, 0.6, 1.5)],
 	["m_hero_vent", Vector3(5.6, 0.7, 2.2), Vector3(5.6, 0.4, -0.5)],
-	["m_living", Vector3(9.5, 1.62, 5.5), Vector3(2.0, 0.8, 8.5)],
-	["m_hall", Vector3(10.0, 1.62, 9.0), Vector3(10.0, 1.0, 1.0)],
-	["m_parents", Vector3(12.8, 1.62, 3.4), Vector3(19.0, 0.8, 2.0)],
-	["m_kitchen", Vector3(4.2, 1.62, 13.8), Vector3(1.0, 0.8, 10.0)],
-	["m_corridor", Vector3(5.2, 1.62, 10.5), Vector3(11.5, 1.0, 12.5)],
-	["m_bath", Vector3(5.7, 1.62, 10.6), Vector3(5.6, 0.5, 14.0)],
+	["m_living", Vector3(9.5, 1.47, 5.5), Vector3(2.0, 0.8, 8.5)],
+	["m_hall", Vector3(10.0, 1.47, 9.0), Vector3(10.0, 1.0, 1.0)],
+	["m_parents", Vector3(12.8, 1.47, 3.4), Vector3(19.0, 0.8, 2.0)],
+	["m_kitchen", Vector3(4.2, 1.47, 13.8), Vector3(1.0, 0.8, 10.0)],
+	["m_corridor", Vector3(5.2, 1.47, 10.5), Vector3(11.5, 1.0, 12.5)],
+	["m_bath", Vector3(5.7, 1.47, 10.6), Vector3(5.6, 0.5, 14.0)],
 	["m_duct", Vector3(5.6, 0.7, -0.6), Vector3(16.0, 0.5, -0.6)],
 	["m_under_bed", Vector3(2.1, 0.72, 2.0), Vector3(0.6, 0.05, 2.1)],
 	["m_hero_wall", Vector3(2.0, 1.6, 3.9), Vector3(6.5, 1.0, 0.2)],
-	["m_closets", Vector3(10.6, 1.62, 4.6), Vector3(9.6, 0.9, 0.5)],
+	["m_closets", Vector3(10.6, 1.47, 4.6), Vector3(9.6, 0.9, 0.5)],
 	["m_bath_vent", Vector3(6.4, 1.5, 11.9), Vector3(4.9, 0.4, 14.0)],
 	["m_fridge_open", Vector3(2.6, 1.6, 12.6), Vector3(0.6, 1.0, 10.4)],
-	["m_wc_door", Vector3(9.5, 1.62, 10.3), Vector3(7.0, 1.0, 11.8)],
+	["m_fridge_front", Vector3(0.3, 1.5, 12.0), Vector3(0.55, 1.1, 10.3)],
+	["m_fridge_low", Vector3(0.9, 0.5, 11.6), Vector3(0.45, 0.1, 10.3)],
+	["m_fridge_top", Vector3(1.6, 1.8, 11.4), Vector3(0.45, 1.5, 10.2)],
+	["m_wc_door", Vector3(9.5, 1.47, 10.3), Vector3(7.0, 1.0, 11.8)],
 	["m_wc", Vector3(7.8, 1.5, 11.6), Vector3(7.8, 0.4, 14.0)],
 	["m_tv", Vector3(4.6, 1.3, 7.4), Vector3(4.6, 0.7, 9.6)],
 ]
@@ -33,9 +36,9 @@ const VIEWS_MONSTER := [
 	["mon_legs", Vector3(10.6, 0.6, 3.6), Vector3(10.0, 0.35, 2.6), MonsterModel.Pose.NORMAL, 1.3],
 ]
 const VIEWS_NIGHT := [
-	["n_hero_room_dark", Vector3(1.8, 1.62, 2.2), Vector3(7.0, 1.0, 2.6), false],
-	["n_hall_flashlight", Vector3(10.0, 1.62, 9.0), Vector3(10.0, 1.0, 1.0), true],
-	["n_monster", Vector3(10.0, 1.62, 6.5), Vector3(10.0, 1.6, 2.6), true],
+	["n_hero_room_dark", Vector3(1.8, 1.47, 2.2), Vector3(7.0, 1.0, 2.6), false],
+	["n_hall_flashlight", Vector3(10.0, 1.47, 9.0), Vector3(10.0, 1.0, 1.0), true],
+	["n_monster", Vector3(10.0, 1.47, 6.5), Vector3(10.0, 1.6, 2.6), true],
 ]
 
 

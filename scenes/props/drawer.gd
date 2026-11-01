@@ -13,16 +13,15 @@ var _closed_pos: Vector3
 var _tween: Tween
 
 
-## `front` is the drawer front cut from the furniture model; `front_offset` places it on the drawer.
-## The tray behind it is the toy box model, squeezed to the drawer's size.
-static func create(width: float, height: float, depth: float, front: Mesh, front_offset: Vector3) -> Drawer:
+## `drawer_mesh` is the whole drawer cut from the furniture model (box, front and knob together);
+## `mesh_offset` places it on the drawer. The drawer's front face is at local z = depth / 2.
+static func create(width: float, height: float, depth: float, drawer_mesh: Mesh, mesh_offset: Vector3) -> Drawer:
 	var d := Drawer.new()
-	var face := MeshInstance3D.new()
-	face.mesh = front
-	face.position = front_offset
-	d.add_child(face)
-	Lowpoly.add_box_shape(d, Vector3(width, height, 0.02), Vector3(0, 0, depth * 0.5))
-	Models.add(d, "toy_box", Vector3(width - 0.04, height * 0.7, depth - 0.02), Vector3(0, -height * 0.5 + 0.005, -0.01))
+	var body := MeshInstance3D.new()
+	body.mesh = drawer_mesh
+	body.position = mesh_offset
+	d.add_child(body)
+	Lowpoly.add_box_shape(d, Vector3(width, height, 0.02), Vector3(0, 0, depth * 0.5 - 0.01))
 	Lowpoly.add_box_shape(d, Vector3(width - 0.04, 0.01, depth), Vector3(0, -height * 0.5 + 0.01, 0))
 	d.content = Node3D.new()
 	d.content.position = Vector3(0, -height * 0.5 + 0.015, 0)
@@ -31,6 +30,7 @@ static func create(width: float, height: float, depth: float, front: Mesh, front
 
 
 func _ready() -> void:
+	sync_to_physics = false  # moves every rendered frame (see HingedDoor)
 	_closed_pos = position
 
 
@@ -42,7 +42,7 @@ func interact(_player: Player) -> void:
 	is_open = not is_open
 	if _tween:
 		_tween.kill()
-	_tween = create_tween().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
+	_tween = create_tween()
 	var target := _closed_pos + transform.basis.z * (SLIDE if is_open else 0.0)
 	_tween.tween_property(self, "position", target, OPEN_TIME if is_open else CLOSE_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	Sfx.play_3d(Sfx.DRAWER_OPEN if is_open else Sfx.DRAWER_CLOSE, global_position, -4.0, 18.0, randf_range(0.95, 1.05))

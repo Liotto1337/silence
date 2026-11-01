@@ -2,23 +2,21 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://qmo6b8hve82u"
-path="res://.godot/imported/barrels_boxes_2.png-b3008fac9f4979b96bac55f9c309216e.ctex"
+uid="uid://cilqkxyv644qf"
+path.s3tc="res://.godot/imported/barrels_boxes_2.png-b3008fac9f4979b96bac55f9c309216e.s3tc.ctex"
 metadata={
-"vram_texture": false
-}
-generator_parameters={
-"md5": "84113341609fb320573aa7cf03c0771e"
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/models/props/barrels_boxes_2.png"
-dest_files=["res://.godot/imported/barrels_boxes_2.png-b3008fac9f4979b96bac55f9c309216e.ctex"]
+dest_files=["res://.godot/imported/barrels_boxes_2.png-b3008fac9f4979b96bac55f9c309216e.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +38,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

@@ -165,6 +165,24 @@ func _run() -> void:
 	for d in house.find_children("*", "Drawer", true, false):
 		fronts_ok = fronts_ok and ((d as Node).get_child(0) as MeshInstance3D).mesh.get_aabb().size.y < 0.25
 	_check(fronts_ok, "drawer fronts don't drag strips of the dresser frame along")
+	var first_drawer: Drawer = house.find_children("*", "Drawer", true, false)[0]
+	var drawer_box := (first_drawer.get_child(0) as MeshInstance3D).mesh.get_aabb()
+	var dresser_body: AABB
+	for c in first_drawer.get_parent().get_children():
+		if c is MeshInstance3D and (c as MeshInstance3D).mesh.get_aabb().size.y > 0.5:
+			dresser_body = (c as MeshInstance3D).mesh.get_aabb()
+	_check(drawer_box.size.z > 0.42 and dresser_body.end.z < 0.2, "a dresser drawer slides out with its own box and its knob (%.2f m deep); the body keeps no knob (front at z %.2f)" % [drawer_box.size.z, dresser_body.end.z])
+	_check(not first_drawer.sync_to_physics and not house.fridge_door.sync_to_physics, "drawers and doors move every rendered frame, not in 60 Hz physics steps (no stutter on fast screens)")
+	var space := _game.get_world_3d().direct_space_state
+	var sofa_back := PhysicsRayQueryParameters3D.create(Vector3(4.8, 0.8, 7.2), Vector3(4.8, 0.8, 5.0), Prop.LAYER_WORLD)
+	var sofa_hit := space.intersect_ray(sofa_back)
+	_check(sofa_hit and absf(sofa_hit.position.z - 5.46) < 0.05, "the sofa's back cushions are solid (hit at z %.2f)" % (sofa_hit.position.z if sofa_hit else -1.0))
+	var sofa_arm := space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(7.0, 0.6, 5.6), Vector3(4.8, 0.6, 5.6), Prop.LAYER_WORLD))
+	var sofa_over := space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(7.0, 0.72, 5.6), Vector3(5.0, 0.72, 5.6), Prop.LAYER_WORLD))
+	_check(sofa_arm and absf(sofa_arm.position.x - 5.86) < 0.06 and not sofa_over, "the sofa's arm cushion is solid and 0.67 m high (hit at x %.2f)" % (sofa_arm.position.x if sofa_arm else -1.0))
+	var grate_hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(6.65, 0.5, 1.5), Vector3(6.65, 0.5, 0.0), Prop.LAYER_WORLD))
+	_check(grate_hit and grate_hit.position.z > 0.18, "the vent grate leaning on the wall has collision (hit at z %.2f, the wall is at 0.10)" % (grate_hit.position.z if grate_hit else -1.0))
+	_check(Player.STAND_HEIGHT - Player.EYE_FROM_TOP < 1.5, "the camera is low, a kid's eye level (%.2f m)" % (Player.STAND_HEIGHT - Player.EYE_FROM_TOP))
 	await _frames(30)
 
 	print("--- breakable vase, clockwork car")
@@ -257,7 +275,17 @@ func _run() -> void:
 
 	print("--- sleep -> night")
 	_game._on_bed(player)
-	await _seconds(6.0)
+	await _seconds(1.5)
+	_check(player.sleeping and player.camera.global_position.y < Player.STAND_HEIGHT - Player.EYE_FROM_TOP, "falling asleep: the player sits down on the bed (eyes at %.2f m)" % player.camera.global_position.y)
+	await _seconds(2.2)
+	_check(player.camera.global_position.y < 0.9 and player.head.rotation.x > 1.0, "...lies back, looking at the ceiling (eyes at %.2f m, pitch %.2f)" % [player.camera.global_position.y, player.head.rotation.x])
+	await _seconds(2.0)
+	_check(is_instance_valid(player._sleep_blanket) and player._sleep_blanket.visible and player._sleep_blanket.position.y > player._sleep_blanket.hidden_y() + 0.3, "...pulls the blanket up")
+	_check(is_instance_valid(player._sleep_blanket) and player._sleep_blanket.spans_width_only(), "...the whole width of the screen, the upper part of the view stays free")
+	await _seconds(1.5)
+	_check(_game.hud.eyes_closed() or _game.phase == 1, "...and closes the eyes")
+	await _seconds(3.4)
+	_check(not player.sleeping and not _game.hud.eyes_closed() and player.collision.disabled == false, "the player gets their body back for the night")
 	var monster: Monster = _game.monster
 	_check(_game.phase == 1 and is_instance_valid(monster), "night started with a monster")
 	_check(get_tree().get_nodes_in_group(&"battery").size() == 5, "5 batteries spawned")
@@ -287,9 +315,12 @@ func _run() -> void:
 	await _frames(2)
 	_check(monster.is_frozen() and monster.model.pose == MonsterModel.Pose.ROAR, "hunt starts with a roar on the spot")
 	var roar_pos := monster.global_position
-	await _seconds(0.9)
-	_check(monster.global_position.distance_to(roar_pos) < 0.05, "stands still while roaring")
-	await _seconds(1.2)
+	var roar_clip: float = monster.model._anim.get_animation(monster.model._clip("roar")).length
+	_check(absf(roar_clip / monster.model._anim.speed_scale - Monster.AGGRO_TIME) < 0.05, "the roar clip is stretched to the scream (%.2f s clip -> %.2f s)" % [roar_clip, roar_clip / monster.model._anim.speed_scale])
+	_check(Monster.AGGRO_TIME < Sfx.ROAR.get_length() and Monster.AGGRO_TIME > Sfx.ROAR.get_length() - 1.0, "it stands for the length of the scream (%.1f s of a %.1f s sound)" % [Monster.AGGRO_TIME, Sfx.ROAR.get_length()])
+	await _seconds(2.4)
+	_check(monster.is_frozen() and monster.global_position.distance_to(roar_pos) < 0.05, "stands still while the roar lasts (2.4 s in)")
+	await _seconds(1.1)
 	_check(not monster.is_frozen() and monster.global_position.distance_to(roar_pos) > 0.3, "runs off after the roar")
 	monster.global_position = Vector3(17.5, 0.05, 2.0)
 	monster._begin_sweep(monster.global_position)
@@ -303,7 +334,8 @@ func _run() -> void:
 	dup_source.queue_free()
 
 	print("--- monster: speed, room inspection, footsteps")
-	_check(Monster.CHASE_SPEED < Player.SPRINT_SPEED and Monster.HUNT_SPEED < Monster.CHASE_SPEED and Monster.PATROL_SPEED < Player.WALK_SPEED, "monster is slower than the sprinting player")
+	_check(Monster.CHASE_SPEED <= Player.SPRINT_SPEED and Monster.HUNT_SPEED < Monster.CHASE_SPEED and Monster.PATROL_SPEED < Player.WALK_SPEED, "monster is no faster than the sprinting player (%.1f vs %.1f m/s)" % [Monster.CHASE_SPEED, Player.SPRINT_SPEED])
+	_check(Player.STAMINA_MAX / Player.SPRINT_DRAIN < 3.5, "a full stamina bar lasts %.1f s of sprint" % (Player.STAMINA_MAX / Player.SPRINT_DRAIN))
 	monster._begin_sweep(monster.global_position)
 	_check(monster._wait_timer >= Monster.LOOK_TIME_SWEEP_START, "looks around before sweeping (%.1f s)" % monster._wait_timer)
 	monster._investigating = false
@@ -380,6 +412,95 @@ func _run() -> void:
 	monster.active = true
 	monster._begin_sweep(monster.global_position)
 
+	print("--- monster: head hitbox, doors it runs into")
+	var probe_m: Monster = (load("res://scenes/monster/monster.tscn") as PackedScene).instantiate()
+	_game.add_child(probe_m)
+	probe_m.global_position = Vector3(10.0, 0.05, 2.0)
+	probe_m.rotation.y = PI  # facing south (+Z)
+	probe_m.player = player
+	await _frames(20)
+	var head_pos := probe_m.model.head_position()
+	var head_ahead := Vector2(head_pos.x - probe_m.global_position.x, head_pos.z - probe_m.global_position.z).length()
+	_check(head_ahead > 0.5 and head_pos.y > 0.6, "the head hangs %.2f m ahead of the body capsule, %.2f m up" % [head_ahead, head_pos.y])
+	var head_ray := _game.get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(head_pos + Vector3(2.0, 0, 0), head_pos, Prop.LAYER_MONSTER))
+	_check(head_ray and head_ray.collider == probe_m.model._head_body, "the head has a solid hitbox of its own (the capsule doesn't cover it)")
+	var head_caught := [false]
+	probe_m.caught_player.connect(func() -> void: head_caught[0] = true)
+	player.set_physics_process(false)
+	player.teleport(Vector3(head_pos.x, 0.05, head_pos.z + 0.3), 0.0)  # at the head, but > CATCH_DISTANCE from the body
+	player.force_update_transform()
+	var body_dist := Vector2(player.global_position.x - probe_m.global_position.x, player.global_position.z - probe_m.global_position.z).length()
+	probe_m.active = true
+	probe_m._check_catch()
+	_check(body_dist > Monster.CATCH_DISTANCE and head_caught[0], "reaching the head counts as being caught (%.2f m from the body)" % body_dist)
+	head_caught[0] = false
+	probe_m.active = true
+	player.teleport(Vector3(head_pos.x, 0.05, head_pos.z + 1.6), 0.0)
+	player.force_update_transform()
+	probe_m._check_catch()
+	_check(not head_caught[0], "a player well clear of the head isn't caught")
+	probe_m.active = false
+	probe_m.queue_free()
+	# A closed door the monster's body runs into opens at once, even if the look-ahead ray missed it.
+	var closet_door: HingedDoor = house.room_doors[0]
+	closet_door.set_open(false)
+	await _frames(40)
+	monster.active = false
+	monster.global_position = Vector3(8.75, 0.05, 3.0)
+	monster.velocity = Vector3(0, 0, -2.0)
+	monster.force_update_transform()
+	monster.move_and_slide()
+	monster._open_doors_touched()
+	_check(closet_door.is_open, "a closed closet door the monster runs into is opened")
+	closet_door.set_open(false)
+	await _frames(40)
+	# Player in a closet opens the door with a monster right outside it: the leaf must not sweep the
+	# monster into the wall behind the door (it used to be pinned there for good); it swings in instead.
+	var closet2: HingedDoor = house.room_doors[1]
+	var blocker: Monster = (load("res://scenes/monster/monster.tscn") as PackedScene).instantiate()
+	_game.add_child(blocker)
+	blocker.global_position = Vector3(11.1, 0.05, 2.05)
+	await _frames(5)
+	player.teleport(Vector3(10.4, 0.05, 0.5), 0.0)
+	player.force_update_transform()
+	closet2.interact(player)
+	await _seconds(1.5)
+	var leaf_with_monster := closet2.to_global(closet2._panel_center)
+	_check(closet2.is_open and leaf_with_monster.z < 1.5 and blocker.global_position.distance_to(Vector3(11.1, 0.05, 2.05)) < 0.1,
+			"door opened from inside with a monster outside swings in, the monster isn't swept into the wall (leaf at z %.2f)" % leaf_with_monster.z)
+	closet2.set_open(false)
+	blocker.global_position = Vector3(40, 0.05, 40)  # gone
+	await _seconds(1.0)
+	closet2.interact(player)
+	await _seconds(1.5)
+	_check(closet2.is_open and closet2.to_global(closet2._panel_center).z > 1.7, "with nobody outside the same door still swings out into the hall (leaf at z %.2f)" % closet2.to_global(closet2._panel_center).z)
+	closet2.set_open(false)
+	blocker.queue_free()
+	await _frames(40)
+	# Closing: a door the player shuts with the monster standing in the doorway refuses to close.
+	var door_blocker: Monster = (load("res://scenes/monster/monster.tscn") as PackedScene).instantiate()
+	_game.add_child(door_blocker)
+	closet2.set_open(true)
+	await _seconds(1.0)
+	var jamb := closet2.get_parent_node_3d().global_transform * Transform3D(Basis(Vector3.UP, closet2._closed_y), closet2.position)
+	var doorway := jamb * Vector3(closet2._panel_center.x, 0.0, 0.0)  # where the closed leaf stands
+	door_blocker.global_position = Vector3(doorway.x, 0.05, doorway.z)
+	await _frames(5)
+	closet2.interact(player)
+	_check(closet2.is_open, "a door can't be closed with a monster standing in the doorway")
+	door_blocker.global_position = Vector3(40, 0.05, 40)
+	await _frames(5)
+	closet2.interact(player)
+	_check(not closet2.is_open, "with the doorway clear the door closes")
+	door_blocker.queue_free()
+	await _seconds(1.0)
+	var fridge_mat := ((house.fridge_door.get_child(0) as MeshInstance3D).mesh as ArrayMesh).surface_get_material(0) as ShaderMaterial
+	_check(fridge_mat != null and fridge_mat.shader == Models.PS1_DOUBLE, "the fridge door is double-sided (its upper half has no back face and vanished from the front)")
+	monster.velocity = Vector3.ZERO
+	monster.active = true
+	player.set_physics_process(true)
+	player.teleport(far_spot, 0.0)
+
 	print("--- monster: goes to the TV and switches it off")
 	monster._begin_sweep(monster.global_position)
 	monster._wait_timer = 0.0
@@ -422,8 +543,10 @@ func _run() -> void:
 	var facing := (-monster.global_basis.z).dot(Vector3(to_player.x, 0, to_player.z).normalized())
 	_check(monster.global_position.distance_to(spot_pos) < 0.05 and facing > 0.97, "turns to face the player and waits (facing %.2f)" % facing)
 	_check(monster.model.pose == MonsterModel.Pose.ALERT, "alert animation while staring")
-	await _seconds(0.5)
-	_check(not monster.is_frozen() and monster.global_position.distance_to(spot_pos) > 0.2, "after ~1 s it starts running")
+	await _seconds(1.5)
+	_check(monster.is_frozen() and monster.global_position.distance_to(spot_pos) < 0.05, "it keeps roaring on the spot for the whole scream (2.2 s in)")
+	await _seconds(1.1)
+	_check(not monster.is_frozen() and monster.global_position.distance_to(spot_pos) > 0.2, "after the %.0f s scream it starts running" % Monster.AGGRO_TIME)
 	await _seconds(2.5)
 	_check(caught[0], "monster catches a player standing still")
 
@@ -504,12 +627,13 @@ func _run() -> void:
 	monster._sweep_queue.clear()
 	monster._wait_timer = 10.0
 	monster.global_position = Vector3(4.0, 0.05, 1.5)
+	await _frames(3)  # let the head hitbox follow the teleported monster before the player comes out
 	player.leave_hiding()
 	_check(not player.is_hidden() and player.crouching, "interact again: crawls out, crouched")
 	var to_bed := player.global_position - monster.global_position
 	monster.rotation.y = atan2(-to_bed.x, -to_bed.z)
 	await _frames(3)
-	_check(monster.state == Monster.State.CHASE, "monster spots the player by the bed")
+	_check(monster.state == Monster.State.CHASE, "monster spots the player by the bed (state %s, active %s, sees %s)" % [Monster.State.keys()[monster.state], monster.active, monster._sees_player])
 	player.hide_under(bed)
 	for i in 20:
 		await _seconds(0.25)
